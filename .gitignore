@@ -175,9 +175,14 @@ logs/
 mood_tagger/data/cache/
 mood_tagger/data/audio/
 mood_tagger/emma/
+mood_tagger/
 
 emma/
 mood_tagger_master_thesis/
+mood_tagger_venv/
+
+
+
 figures/
 mood_tagger_master_thesis_V2/data/cache/
 mood_tagger_master_thesis_V2/data/audio/
