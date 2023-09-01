@@ -10,7 +10,7 @@ class Net(torch.nn.Module):
 
     CHANNEL_BASE = 20
 
-    DEFAULT_KEY_CLASSES = 24
+    DEFAULT_CLASSES = 9
 
     N_FFT = 8192
     FPS = 5
@@ -21,8 +21,9 @@ class Net(torch.nn.Module):
         sample_rate: int = SAMPLE_RATE,
         dropout_p: float = DROPOUT_P,
         channel_base: int = CHANNEL_BASE,
-        num_key_classes: int = DEFAULT_KEY_CLASSES,
+        num_classes: int = DEFAULT_CLASSES,
         debug: bool = False,
+        **kwargs,
     ) -> None:
         super().__init__()
 
@@ -32,11 +33,11 @@ class Net(torch.nn.Module):
         self.audio_input = audio_input
         self.sample_rate = sample_rate
         self.channel_base = channel_base
-        self.num_key_classes = num_key_classes
+        self.num_classes = num_classes
 
         self.dropout_p = dropout_p
         self.frequency_bins = 200
-        self.hop_length = int(self.SAMPLE_RATE / self.FPS)
+        self.hop_length = int(self.sample_rate / self.FPS)
 
         self.mel_spec_transform = LogMelSpec(
             sample_rate=self.sample_rate, n_fft=self.N_FFT, frequency_bins=self.frequency_bins, hop_size=self.hop_length
@@ -54,14 +55,10 @@ class Net(torch.nn.Module):
             torch.nn.BatchNorm2d(channel_base),
             torch.nn.MaxPool2d((2, 2)),
             torch.nn.Dropout2d(self.dropout_p),
-            torch.nn.Conv2d(
-                in_channels=channel_base, out_channels=2 * channel_base, kernel_size=(3, 3), padding="same"
-            ),
+            torch.nn.Conv2d(in_channels=channel_base, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(2 * channel_base),
-            torch.nn.Conv2d(
-                in_channels=2 * channel_base, out_channels=2 * channel_base, kernel_size=(3, 3), padding="same"
-            ),
+            torch.nn.Conv2d(in_channels=2*channel_base, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(2 * channel_base),
             torch.nn.MaxPool2d((2, 2)),
@@ -90,10 +87,11 @@ class Net(torch.nn.Module):
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(8 * channel_base),
             torch.nn.Dropout2d(self.dropout_p),
-            torch.nn.Conv2d(in_channels=8 * channel_base, out_channels=self.num_key_classes, kernel_size=(1, 1), padding="same"),
+            torch.nn.Conv2d(in_channels=8 * channel_base, out_channels=self.num_classes, kernel_size=(1, 1), padding="same"),
             torch.nn.ELU(),
-            torch.nn.BatchNorm2d(self.num_key_classes),
+            torch.nn.BatchNorm2d(self.num_classes),
             torch.nn.AdaptiveAvgPool2d(output_size=(1, 1)),
+            torch.nn.ReLU(),
         )
 
     def forward(self, x_input: torch.Tensor) -> torch.Tensor:
@@ -111,7 +109,7 @@ class Net(torch.nn.Module):
             if self.debug:
                 print(x.shape)
         scores = x
-        return scores.view(-1, self.num_key_classes)
+        return scores.view(-1, self.num_classes)
 
     def is_sequential(self):
         return self._sequential

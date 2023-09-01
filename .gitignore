@@ -174,3 +174,16 @@ outputs/
 logs/
 mood_tagger/data/cache/
 mood_tagger/data/audio/
+mood_tagger/emma/
+
+emma/
+mood_tagger_master_thesis/
+figures/
+mood_tagger_master_thesis_V2/data/cache/
+mood_tagger_master_thesis_V2/data/audio/
+mood_tagger_master_thesis_V2/emma/
+mood_tagger_master_thesis_V2/musicnn_pons/
+
+music-audio-representations/
+
+vggish_model.ckpt

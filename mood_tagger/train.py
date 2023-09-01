@@ -2,18 +2,23 @@ import logging
 import time
 from collections import OrderedDict
 from typing import Any
+import os
+import shutil
 
 import hydra
+from hydra.core.hydra_config import HydraConfig
 import numpy as np
 import torch
 from catalyst import dl, utils
 from omegaconf import DictConfig, OmegaConf
 from torch import nn, optim
-from torch.utils.data import DataLoader
 
-from mood_tagger import get_architecture
-from mood_tagger.data import load_data, FeatureSetup
+from catalyst.engines.torch import GPUEngine
 
+
+from mood_tagger import get_architecture, test_model
+from mood_tagger.data import load_data, FeatureSetup, NUM_CLASSES
+#export PYTHONPATH="$PWD/"
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -54,50 +59,57 @@ class CustomRunner(dl.Runner):
 
 def run_training(cfg: DictConfig) -> None:
     time_t0 = time.time()
-    architecture, architecture_file = get_architecture(cfg["model"]["architecture"])
-    use_audio_in = cfg["model"]["audio-inputs"]
+    architecture, architecture_file = get_architecture(cfg.model.architecture)
+    use_audio_in = cfg.model.audio_inputs
     gpu_num = 0
-    k_samples = cfg["training"]["k_samples"]
-    batch_size = cfg["training"]["batch_size"]
-    val_size = cfg["training"]["validation_size"]
-    num_pt_workers = cfg["training"]["num_data_threads"]
-    max_epochs = cfg["training"]["max_num_epochs"]
+    k_samples = cfg.training.k_samples
+    batch_size = cfg.training.batch_size
+    val_size = cfg.training.validation_size
+    num_pt_workers = cfg.training.num_data_threads
+    max_epochs = cfg.training.max_num_epochs
 
-    valid_fm_thresh = cfg["training"]["valid_fm_thresh"]
-    memory_map = cfg["training"]["memory_map"]
-    patience = cfg["training"]["patience"]
-    refinements = cfg["training"]["refinements"]
+    memory_map = cfg.training.memory_map
+    patience = cfg.training.patience
+    refinements = cfg.training.refinements
 
-    seq_len = cfg["training"]["sequence-length"]
-    hop_size = cfg["training"]["sequence-hop"]
-    feat_sample_rate = cfg["features"]["sample_rate"]
-    feat_frame_rate = cfg["features"]["frame_rate"]
-    feat_window_size = cfg["features"]["window_size"]
+    seq_len = cfg.training.sequence_length
+    hop_size = cfg.training.sequence_hop
+    feat_sample_rate = cfg.features.sample_rate
+    feat_frame_rate = cfg.features.frame_rate
+    feat_window_size = cfg.features.window_size
 
-    learning_rate = cfg["training"]["learning-rate"]
+    learning_rate = cfg.training.learning_rate
 
-    num_key_classes = 24  # 24 keys ?
+    hydra_base_dir = HydraConfig.get().runtime.output_dir
+    catalyst_out_dir = os.path.join(hydra_base_dir, 'catalyst')
+    model_out_dir = os.path.join(hydra_base_dir, 'models')
+    os.makedirs(catalyst_out_dir)
+    os.makedirs(model_out_dir)
+    print(f"Output dir: {hydra_base_dir}")
+
+    shutil.copy(architecture_file, os.path.join(model_out_dir, os.path.split(architecture_file)[1]))
+
+    num_classes = NUM_CLASSES
     num_spec_bins = 100
     num_channels = 1
-    sample_rate = 44100
 
     fft_hop_size = feat_sample_rate / feat_frame_rate
 
     snippet_duration_s = (fft_hop_size * (seq_len - 1) + feat_window_size) / feat_sample_rate
     snippet_hop_s = fft_hop_size * (hop_size - 1) / feat_sample_rate
 
-    model = architecture(audio_input=use_audio_in, num_key_classes=num_key_classes, debug=True)
+    model = architecture(audio_input=use_audio_in, num_classes=num_classes, debug=True, **cfg.features)
     if use_audio_in:
         in_size = (batch_size, int((seq_len - 1) * (feat_sample_rate / feat_frame_rate) + feat_window_size))
     else:
-        in_size = (batch_size, seq_len, num_spec_bins)
+        in_size = (batch_size, seq_len, cfg.features.freq_bins)
     output = model.forward(torch.Tensor(np.zeros(in_size)))
     print(output.shape)
 
-    model = architecture(audio_input=use_audio_in, num_key_classes=num_key_classes)
+    model = architecture(audio_input=use_audio_in, num_classes=num_classes, **cfg.features)
 
     feat_settings = FeatureSetup(
-        "mood_feat", feat_sample_rate, 1, feat_frame_rate, feat_window_size, 100, 30, False, "log", "log_1"
+        "mood_feat", feat_sample_rate, 1, feat_frame_rate, feat_window_size, cfg.features.freq_bins, 30, False, "log", "log_1"
     )
 
     test_loader, train_loader, valid_loader = load_data(batch_size,
@@ -109,15 +121,15 @@ def run_training(cfg: DictConfig) -> None:
                                                         seq_len,
                                                         use_audio_in,
                                                         val_size,
-                                                        valid_fm_thresh,
                                                         model.is_sequential())
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.MSELoss()  #   nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     from catalyst.utils.torch import get_available_engine
 
-    engine = get_available_engine()
+    # engine = get_available_engine()
+    engine = GPUEngine()#fp16=False
     engine.dispatch_batches = False
     runner = CustomRunner(FEAT_KEY, TARG_KEY, engine=engine)
 
@@ -134,7 +146,7 @@ def run_training(cfg: DictConfig) -> None:
 
     callbacks = [dl.CriterionCallback(input_key="logits", target_key="targets", metric_key="loss"),
                  dl.BackwardCallback(metric_key="loss"), dl.OptimizerCallback(metric_key="loss"),
-                 dl.CheckpointCallback("./logs", loader_key="valid", metric_key="loss", minimize=True, topk=3),
+                 dl.CheckpointCallback(model_out_dir, loader_key="valid", metric_key="loss", minimize=True, topk=3),
 
                  ]
     if early_stopping:
@@ -148,27 +160,16 @@ def run_training(cfg: DictConfig) -> None:
         optimizer=optimizer,
         loaders=loaders,
         scheduler=scheduler,
-        logdir="./logs",
-        num_epochs=max_epochs,  # if not early_stopping else -1,
+        logdir=catalyst_out_dir,
+        num_epochs=max_epochs,
         verbose=True,
         valid_loader="valid",
         valid_metric="loss",
         minimize_valid_metric=True,
         callbacks=callbacks,
-        # timeit=True,
     )
 
-    # model evaluation
-    # model.debug = True
-    metrics = runner.evaluate_loader(
-        model=model,
-        loader=test_loader,
-        callbacks=[
-            dl.AccuracyCallback(input_key="logits", target_key="targets", topk=(1, 3)),
-            dl.PrecisionRecallF1SupportCallback(input_key="logits", target_key="targets", num_classes=num_key_classes),
-        ],
-    )
-    print(f"Metrics for test {metrics}")
+    test_model(model, num_classes, test_loader, engine.device)
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="default")

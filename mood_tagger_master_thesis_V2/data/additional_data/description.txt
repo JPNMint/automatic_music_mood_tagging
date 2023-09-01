@@ -1,0 +1,11 @@
+	
+peer-ole-jacobsen
+
+Hello :blush:,
+here are the dictionaries we talked about. I stored them using the 'pickle' module, I hope that's fine for you. 
+gems_items.pkl comprises the 45 items as values with an assignment to the 9 dimensions as keys. synonyms_dict.pkl comprises all sysonyms we found for each of the 45 items. 
+If there are any questions, feel free to ask!
+
+	
+hannah-strauss
+Hello! Here is the file with the number of participants that chose a particular item per song (Gs_1 to Gs_47) as well as the total number of items selected per song (sum_selected) and the number of participants that rated the respective song (n_raters). Let me know in case you need any additional data or you have any questions!
