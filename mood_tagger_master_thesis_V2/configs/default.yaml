@@ -1,0 +1,29 @@
+model:
+  architecture: allconv_01 #'musicnn' #'allconv_01' #allconv_02 #transfer_learning_seq #transfer_learning  
+  ##'' ##allconv_01 #'allconv_complex2' #allconv_01 #'musicnn' #'allconv_01_single' #'allconv_complex2' #'musicnn' #allconv_01' #'allconv_complex' #'allconv_01' #
+  audio_inputs: True
+
+datasets:
+  names: ['emma_gems9']
+  scale: 'StandardScaler' #'RobustScaler' #'MinMax' #'MaxAbs'
+
+features:
+  frame_rate: 10 #5 #5
+  window_size: 8192  
+  sample_rate: 44100 #16000 
+  freq_bins: 200
+
+
+training:
+  learning_rate:  1e-1  #1e-2 # 1e-1 #1e-2
+  sequence_length: 150 #BEST NOW 75 #15 #150 #15
+  sequence_hop: 50 #15
+  k_samples: 1e5
+  batch_size: 20 #25 #32
+  validation_size: 0.5
+  memory_map: True
+  num_data_threads: 8
+  max_num_epochs: 999999
+  patience: 15
+  refinements: 3
+  transformation: None #'reciprocal' #'log'

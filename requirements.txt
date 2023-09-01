@@ -1,0 +1,10 @@
+torch
+torchaudio
+numpy
+pandas
+catalyst
+librosa
+hydra-core
+omegaconf
+tensorboard
+notebook
