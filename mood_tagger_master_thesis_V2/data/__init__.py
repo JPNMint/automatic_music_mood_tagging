@@ -181,13 +181,14 @@ def match_files():
 
 
 class RandomPartitioner:
-    def __init__(self, feats, annots, targs, names, genres, seed, mode, test_split=0.15, valid_split=0.15):
+    def __init__(self, feats, annots, targs, names, genres, seed, mode, tolerance, oversampling = False,test_split=0.15, valid_split=0.15):
         self.feats = feats
         self.annots = annots
         self.targs = targs
         self.names = names
         self.genres = genres
         self.seed = seed
+        self.tolerance = tolerance
         num_samples = len(feats)
         assert num_samples == len(annots) == len(targs) == len(names) == len(genres)
         import random as rand
@@ -199,36 +200,37 @@ class RandomPartitioner:
         self.test_indices = indices[:test_stop]
         self.valid_indices = indices[test_stop:valid_stop]
         self.train_indices = indices[valid_stop:]
+        self.oversampling = oversampling
 ##############
         #self.test_names = [self.names[index] for index in self.test_indices]
         #self.train_names = [self.names[index] for index in self.train_indices]
 ###########
-        if mode == "train":
-            tolerance = 20
+        ##oversampling
+        if self.oversampling == True:
+            #tolerance = 20
             meanvals = [13.282972972972974, 9.536189189189187, 13.177081081081083, 9.475270270270272, 15.062567567567566, 19.696594594594593, 12.22191891891892, 8.125810810810812, 3.2404324324324327]
             candidate = []
             for i in range(len(self.annots)): #each list in list 
                 for pos in range(len(self.annots[i])):
                     annot = self.annots[i][pos]
                     mean = meanvals[pos]
-                    if np.abs(annot-mean) > tolerance:
+                    if np.abs(annot-mean) > self.tolerance:
                         if i not in candidate:
                             candidate.append(i)
-                    #if annot > mean + 10:
-                    #    if i not in candidate:
-                    #        candidate.append(i)
 
             ## see if candidate is in train, get matching indices
             matching_indices = []
             for index, value in enumerate(candidate):
-                if value in self.train_indices:
-                    matching_indices.append(value)
-            print(f"Oversampling {len(matching_indices)} samples! (When training, does not affect testing), score tolerance: {tolerance}")
+                if value in self.train_indices: 
+                    #allconv01
+                    #without oversamp RMSE: 6.44
+                    matching_indices.append(value) #tol 20 52 RMSE: 6.34 #tol 25 23 RMSE: 7.01 #tol30 RMSE: 7.52
+                    #matching_indices.append(value) ## tol 10 RMSE: 7.01 ,tol 20, 104 RMSE: 7.58 #tol 25, 46 RMSE: 6.72 #tol30 RMSE: 6.70
+
+            if mode == "train" :
+                print(f"Oversampling {len(matching_indices)} samples! (When training, does not affect testing), score tolerance: {self.tolerance}")
             self.train_indices.extend(matching_indices)
 
-
-
-        #values_at_indices = [self.train_names[index] for index in matching_indices]
 
 #################
 
@@ -269,7 +271,9 @@ def load_data(
         sequential,
         transform = None,
         scale = None,
-        mode = 'train'
+        mode = 'train',
+        oversampling = False,
+        tolerance = 20
         
 ):
     if scale == 'None':
@@ -287,11 +291,14 @@ def load_data(
         feats = [entry.get_audio() for entry in entries]  # TODO calculate spectrogram here.
         raise NotImplemented()
 
+    if oversampling == 'True':
+        oversampling = True
     annots = [entry.get_gems_9() for entry in entries]
+
+
     ##Scaling
     if scale == 'MaxAbs':
         transformer = MaxAbsScaler().fit(annots)
-        #annots = transformer.transform(annots).astype(float) # inverse_transform(X)
         annots = np.float32(transformer.transform(annots)) # inverse_transform(X)
         
         #save scaler for inversing
@@ -299,7 +306,6 @@ def load_data(
         pickle.dump(transformer, open(filename_MaxAbsScaler, 'wb'))
     if scale == 'MinMax':
         transformer = MinMaxScaler().fit(annots)
-        #annots = transformer.transform(annots).astype(float) # inverse_transform(X)
         annots = np.float32(transformer.transform(annots)) # inverse_transform(X)
         
         #save scaler for inversing
@@ -308,7 +314,6 @@ def load_data(
 
     if scale == 'RobustScaler':
         transformer = RobustScaler().fit(annots)
-        #annots = transformer.transform(annots).astype(float) # inverse_transform(X)
         annots = np.float32(transformer.transform(annots)) # inverse_transform(X)
         
         #save scaler for inversing
@@ -317,10 +322,9 @@ def load_data(
 
     if scale == 'StandardScaler':
         transformer = StandardScaler().fit(annots)
-        #annots = transformer.transform(annots).astype(float) # inverse_transform(X)
         annots = np.float32(transformer.transform(annots)) # inverse_transform(X)
         
-        #save scaler for inversing
+        #save scaler for inversings
         filename_StandardScaler = Path().resolve()/f"mood_tagger_master_thesis_V2/Scaler/StandardScaler.sav"
         pickle.dump(transformer, open(filename_StandardScaler, 'wb'))
 
@@ -336,7 +340,7 @@ def load_data(
         annots = np.log(np.array(annots)+1)
  
 
-    partitioner = RandomPartitioner(feats, annots, targs, names, genres, 42, mode = mode)
+    partitioner = RandomPartitioner(feats, annots, targs, names, genres, 42, mode = mode, tolerance = tolerance, oversampling = oversampling)
 
     valid_subset = None
     if val_size is not None and 0.0 < val_size < 1.0:
@@ -398,6 +402,16 @@ def load_data(
         if value in test_names:
             matching_indices.append(index)
     assert len(matching_indices) == 0
+
+    matching_indices = []
+    for index, value in enumerate(train_names):
+        #if value == 'Tschaikowski 4. Sinfonie':
+        #    print(True)
+        if value in valid_names:
+            matching_indices.append(index)
+    assert len(matching_indices) == 0
+
+
     return test_loader, train_loader, valid_loader
 
 

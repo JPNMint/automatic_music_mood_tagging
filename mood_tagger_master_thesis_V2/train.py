@@ -83,6 +83,9 @@ def run_training(cfg: DictConfig) -> None:
     transform = cfg.training.transformation
     scale = cfg.datasets.scale
 
+    oversampling = cfg.datasets.oversampling
+    tolerance = cfg.datasets.oversampling_tolerance
+
     hydra_base_dir = HydraConfig.get().runtime.output_dir
     catalyst_out_dir = os.path.join(hydra_base_dir, 'catalyst')
     model_out_dir = os.path.join(hydra_base_dir, 'models')
@@ -133,7 +136,9 @@ def run_training(cfg: DictConfig) -> None:
                                                         model.is_sequential(),
                                                         transform = transform,
                                                         scale = scale,
-                                                        mode = "train") 
+                                                        mode = "train",
+                                                        oversampling = oversampling,
+                                                        tolerance = tolerance) 
 
     criterion = nn.MSELoss() #torch.nn.SmoothL1Loss()   nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)

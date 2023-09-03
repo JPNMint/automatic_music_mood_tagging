@@ -15,6 +15,7 @@ def run(run_path = None):
     # 21-06-42 > conv_02 -> 6 seconds 150
     # 21-11-13 > conv_02 -> 16s 500 seqlen
     if run_path is None:
+        run_path = '/home/ykinoshita/humrec_mood_tagger/outputs/2023-09-03/15-11-08' #allconv02 oversampling tol 20 +2
         #run_path = '/home/ykinoshita/humrec_mood_tagger/outputs/2023-09-01/17-43-02' #allconv01 oversampling tol 20 Standard scaler
         #run_path = '/home/ykinoshita/humrec_mood_tagger/outputs/2023-09-01/15-02-58' #allconv01 oversampling tol 20
         #run_path = '/home/ykinoshita/humrec_mood_tagger/outputs/2023-09-01/14-22-24' #allconv01 oversampling tol 20 Robust scaling
