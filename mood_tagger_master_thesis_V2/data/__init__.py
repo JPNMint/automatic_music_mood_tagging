@@ -27,6 +27,8 @@ ANNOT_CSV_FILE = os.path.join(DATA_PATH, "GEMS-INN_2023-01-30_expert.csv")
 os.makedirs(CACHE_PATH, exist_ok=True)
 
 GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']
+GEMS_9_ext = ['artist', 'title', 'Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']
+
 NUM_CLASSES = len(GEMS_9)
 GENRE_MAP = {'H': 'Hip-Hop', 'K': 'Classical', 'P': 'Pop'}
 
@@ -95,13 +97,14 @@ def remove_special_chars(name_with_chars):
     return output_name
 
 class Entry:
-    def __init__(self, audio_file_name, data_row):
+    def __init__(self, audio_file_name, data_row, train_y):
         self.genre_key = audio_file_name[:1]
         self.artist_name = data_row.artist
         self.track_name = data_row.title
         self.audio_file_name = audio_file_name
         self.data_row = data_row
         self.audio_data = None
+        self.train_y = train_y
 
     def _get_cache_path(self):
         base_name, _ = os.path.splitext(self.audio_file_name)
@@ -127,7 +130,10 @@ class Entry:
         return cache_file
 
     def get_gems_9(self):
-        return self.data_row[GEMS_9].to_numpy(dtype=np.float32)
+        if isinstance(self.train_y, str):
+            return self.data_row[[self.train_y]].to_numpy(dtype=np.float32)
+        else:
+            return self.data_row[GEMS_9].to_numpy(dtype=np.float32)
 
     def get_name(self):
         return f"{self.artist_name} {self.track_name}"
@@ -136,7 +142,7 @@ class Entry:
         return self.genre_key
 
 
-def match_files():
+def match_files(train_y):
     emma_df = pd.read_csv(ANNOT_CSV_FILE, encoding="ISO-8859-1")
     emma_df.dropna(inplace=True)
     audio_files = os.listdir(AUDIO_PATH)
@@ -167,7 +173,7 @@ def match_files():
                     # print(f'    found! {artist_name}  {track_name} == {audio_file_short}')
                     found = True
                     matched += 1
-                    entries.append(Entry(cur_audio_file, col_series))
+                    entries.append(Entry(cur_audio_file, col_series, train_y = train_y))
                     break
             else:
                 print(f"problem with {audio_file_short} - more than 2 parts")
@@ -181,7 +187,7 @@ def match_files():
 
 
 class RandomPartitioner:
-    def __init__(self, feats, annots, targs, names, genres, seed, mode, tolerance, oversampling = False,test_split=0.15, valid_split=0.15):
+    def __init__(self, feats, annots, targs, names, genres, seed, train_y,mode, tolerance, oversampling = False,test_split=0.15, valid_split=0.15):
         self.feats = feats
         self.annots = annots
         self.targs = targs
@@ -206,30 +212,66 @@ class RandomPartitioner:
         #self.train_names = [self.names[index] for index in self.train_indices]
 ###########
         ##oversampling
+        smogn = True
         if self.oversampling == True:
-            #tolerance = 20
-            meanvals = [13.282972972972974, 9.536189189189187, 13.177081081081083, 9.475270270270272, 15.062567567567566, 19.696594594594593, 12.22191891891892, 8.125810810810812, 3.2404324324324327]
-            candidate = []
-            for i in range(len(self.annots)): #each list in list 
-                for pos in range(len(self.annots[i])):
-                    annot = self.annots[i][pos]
-                    mean = meanvals[pos]
-                    if np.abs(annot-mean) > self.tolerance:
-                        if i not in candidate:
-                            candidate.append(i)
 
-            ## see if candidate is in train, get matching indices
-            matching_indices = []
-            for index, value in enumerate(candidate):
-                if value in self.train_indices: 
-                    #allconv01
-                    #without oversamp RMSE: 6.44
-                    matching_indices.append(value) #tol 20 52 RMSE: 6.34 #tol 25 23 RMSE: 7.01 #tol30 RMSE: 7.52
-                    #matching_indices.append(value) ## tol 10 RMSE: 7.01 ,tol 20, 104 RMSE: 7.58 #tol 25, 46 RMSE: 6.72 #tol30 RMSE: 6.70
+            #####smogn approach#### 3.86 trancsendence ohne smogn
 
-            if mode == "train" :
-                print(f"Oversampling {len(matching_indices)} samples! (When training, does not affect testing), score tolerance: {self.tolerance}")
-            self.train_indices.extend(matching_indices)
+            ####CHECK THIS 
+            #### PREDICTION IS REDICULOUSLY HIGH
+
+            if smogn and isinstance(train_y, str):
+                
+                import smogn
+
+                train_set = [self.annots[i] for i in self.train_indices] 
+                train_set = pd.DataFrame(train_set, columns=[train_y])
+                names = [self.names[i] for i in self.train_indices] 
+                name_indices_set = pd.DataFrame(names, columns= ['names'])
+                name_indices_set['indices'] = self.train_indices
+
+                train_set['names'] = names
+                #emma['indices'] = self.train_indices
+                
+                ## conduct smogn
+                smogn_dataset = smogn.smoter(
+                    
+                    data = train_set,  ## pandas dataframe
+                    y = train_y,  ## string ('header name')
+                    samp_method = 'balance'
+                )
+                smogn_dataset = smogn_dataset.merge(name_indices_set, on='names', how='left')
+                print(smogn_dataset)
+                self.train_indices = smogn_dataset['indices']
+
+
+            ### naive approach
+            else:
+                meanvals = [13.282972972972974, 9.536189189189187, 13.177081081081083, 9.475270270270272, 15.062567567567566, 19.696594594594593, 12.22191891891892, 8.125810810810812, 3.2404324324324327]
+                candidate = []
+                for i in range(len(self.annots)): #each list in list 
+                    for pos in range(len(self.annots[i])):
+                        annot = self.annots[i][pos]
+                        mean = meanvals[pos]
+                        if np.abs(annot-mean) > self.tolerance:
+                            if i not in candidate:
+                                candidate.append(i)
+
+                ## see if candidate is in train, get matching indices
+                matching_indices = []
+                for index, value in enumerate(candidate):
+                    if value in self.train_indices: 
+                        #allconv01
+                        #without oversamp RMSE: 6.44
+                        matching_indices.append(value) #tol 20 52 RMSE: 6.34 #tol 25 23 RMSE: 7.01 #tol30 RMSE: 7.52
+                        #matching_indices.append(value) ## tol 10 RMSE: 7.01 ,tol 20, 104 RMSE: 7.58 #tol 25, 46 RMSE: 6.72 #tol30 RMSE: 6.70
+
+                if mode == "train" :
+                    print(f"Oversampling {len(matching_indices)} samples! (When training, does not affect testing), score tolerance: {self.tolerance}")
+                self.train_indices.extend(matching_indices)
+
+            
+            
 
 
 #################
@@ -269,11 +311,13 @@ def load_data(
         use_audio_in,
         val_size,
         sequential,
+        train_y,
         transform = None,
         scale = None,
         mode = 'train',
         oversampling = False,
-        tolerance = 20
+        tolerance = 20,
+    
         
 ):
     if scale == 'None':
@@ -282,7 +326,7 @@ def load_data(
         print(f'Loading Data! Scaling is set to {scale}!')
     else:
         print(f'Loading Data!')
-    entries = match_files()
+    entries = match_files(train_y = train_y)
     if transform != None:
         print(f'Transformation is set to {transform}!')
     if use_audio_in:
@@ -340,7 +384,7 @@ def load_data(
         annots = np.log(np.array(annots)+1)
  
 
-    partitioner = RandomPartitioner(feats, annots, targs, names, genres, 42, mode = mode, tolerance = tolerance, oversampling = oversampling)
+    partitioner = RandomPartitioner(feats, annots, targs, names, genres, 42, train_y, mode = mode, tolerance = tolerance, oversampling = oversampling)
 
     valid_subset = None
     if val_size is not None and 0.0 < val_size < 1.0:

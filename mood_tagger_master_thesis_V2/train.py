@@ -57,7 +57,7 @@ class CustomRunner(dl.Runner):
         self.batch = {"features": x, "targets": y, "logits": logits}
 
 
-def run_training(cfg: DictConfig) -> None:
+def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']) -> None:
     torch.cuda.empty_cache()
     time_t0 = time.time()
     architecture, architecture_file = get_architecture(cfg.model.architecture)
@@ -94,8 +94,10 @@ def run_training(cfg: DictConfig) -> None:
     print(f"Output dir: {hydra_base_dir}")
 
     shutil.copy(architecture_file, os.path.join(model_out_dir, os.path.split(architecture_file)[1]))
-
-    num_classes = NUM_CLASSES
+    if isinstance(GEMS_9, str):
+        num_classes = 1
+    else:
+        num_classes = NUM_CLASSES
     num_spec_bins = 100
     num_channels = 1
 
@@ -138,7 +140,8 @@ def run_training(cfg: DictConfig) -> None:
                                                         scale = scale,
                                                         mode = "train",
                                                         oversampling = oversampling,
-                                                        tolerance = tolerance) 
+                                                        tolerance = tolerance,
+                                                        train_y = GEMS_9) 
 
     criterion = nn.MSELoss() #torch.nn.SmoothL1Loss()   nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
@@ -185,8 +188,10 @@ def run_training(cfg: DictConfig) -> None:
         minimize_valid_metric=True,
         callbacks=callbacks,
     )
-
-    test_model(model, num_classes, test_loader, engine.device, transform = cfg.training.transformation, training = 'training', scale = scale )
+    if isinstance(GEMS_9, str):
+        test_model(model, num_classes, test_loader, engine.device, transform = cfg.training.transformation, training = 'training', scale = scale, model_name = cfg.model.architecture , train_y = GEMS_9)
+    else:
+        test_model(model, num_classes, test_loader, engine.device, transform = cfg.training.transformation, training = 'training', scale = scale, model_name = cfg.model.architecture )
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="default")

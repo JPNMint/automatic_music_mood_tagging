@@ -55,7 +55,7 @@ def calcAUC(predictions, annotations, n_classes):
     return roc_aucs, pr_aucs
 
 
-def test_model(model, num_classes, test_loader, device, plot=False, model_name=None, transform = None, training = 'test', scale = None):
+def test_model(model, num_classes, test_loader, device, plot=False, model_name=None, transform = None, training = 'test', scale = None , train_y = None):
     if transform == 'log':
         print('Output data is log transform, applying np.exp to output.')
     if scale == 'None':
@@ -145,7 +145,10 @@ def test_model(model, num_classes, test_loader, device, plot=False, model_name=N
 
 
     import pandas as pd
-    error_df = pd.DataFrame(errors, columns=GEMS_9)
+    if isinstance(train_y, str):
+        error_df = pd.DataFrame(errors)#, columns=[train_y]
+    else:
+        error_df = pd.DataFrame(errors, columns=GEMS_9)
     mean_errors_df = error_df.mean()
     mean_abs_errors_df = error_df.abs().mean()
     mse_df = (error_df**2).mean()
@@ -155,7 +158,7 @@ def test_model(model, num_classes, test_loader, device, plot=False, model_name=N
     index_list = ['mean error', 'm abs error', 'mse', 'rmse', 'maximums', 'minimums']
     concatenated_df = pd.concat([mean_errors_df, mean_abs_errors_df, mse_df, rmse_df, max_df, min_df], keys=index_list)
     # Calculate Mean Absolute Error (MAE)
-    
+
     #mean_abs_errors = np.mean(np.abs(predictions - actual))
     
     # Calculate Mean Error (ME)
@@ -179,6 +182,21 @@ def test_model(model, num_classes, test_loader, device, plot=False, model_name=N
 
 
     print(concatenated_df) 
+    concatenated_df['model'] = model_name
+
+    if isinstance(train_y, str):
+        #change into write
+        concatenated_df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv')
+    else:
+        data = {
+                'Model' : [model_name],
+                'me' : [np.mean(mean_errors_df)],
+                'MAE' :  [np.mean(mean_abs_errors_df)],
+                'MSE' : [np.mean(mse_df)],
+                'RMSE' : [np.mean(rmse_df)]
+            }
+        df = pd.DataFrame(data)
+        df.to_csv(Path.cwd() / f'/mood_tagger_master_thesis_V2/performance/model_performance.csv')
 
 
 
