@@ -1,5 +1,5 @@
 model:
-  architecture: allconv_01 #allconv_complex #'musicnn' #'' #allconv_02 #transfer_learning_seq #transfer_learning  
+  architecture: allconv_complex #allconv_complex #'musicnn' #'' #allconv_02 #transfer_learning_seq #transfer_learning  
   ##'' ##allconv_01 #'allconv_complex2' #allconv_01 #'musicnn' #'allconv_01_single' #'allconv_complex2' #'musicnn' #allconv_01' #'allconv_complex' #'allconv_01' #
   audio_inputs: True
 

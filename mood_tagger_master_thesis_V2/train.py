@@ -89,11 +89,13 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
     hydra_base_dir = HydraConfig.get().runtime.output_dir
     catalyst_out_dir = os.path.join(hydra_base_dir, 'catalyst')
     model_out_dir = os.path.join(hydra_base_dir, 'models')
-    os.makedirs(catalyst_out_dir)
-    os.makedirs(model_out_dir)
-    print(f"Output dir: {hydra_base_dir}")
+    if not isinstance(GEMS_9, str):
 
-    shutil.copy(architecture_file, os.path.join(model_out_dir, os.path.split(architecture_file)[1]))
+        os.makedirs(catalyst_out_dir)
+        os.makedirs(model_out_dir)
+        print(f"Output dir: {hydra_base_dir}")
+
+        shutil.copy(architecture_file, os.path.join(model_out_dir, os.path.split(architecture_file)[1]))
     if isinstance(GEMS_9, str):
         num_classes = 1
     else:

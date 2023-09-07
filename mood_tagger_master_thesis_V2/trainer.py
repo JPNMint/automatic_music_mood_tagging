@@ -29,9 +29,9 @@ def trainer(cfg: DictConfig) -> None:
     GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']
 
     print(OmegaConf.to_yaml(cfg))
-    #for i in GEM_9:
+    for i in GEMS_9:
 
-    run_training(cfg, GEMS_9 = 'Transcendence')
+        run_training(cfg, GEMS_9 = i)
 
 
 if __name__ == "__main__":
