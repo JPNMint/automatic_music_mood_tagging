@@ -159,13 +159,13 @@ def test_model(model, num_classes, test_loader, device, plot=False, model_name=N
     #concatenated_df = pd.concat([mean_errors_df, mean_abs_errors_df, mse_df, rmse_df, max_df, min_df], keys=index_list)
 
     data = {
-                'Model' : [model_name],
-                'me' : [mean_errors_df.values],
-                'MAE' :  [mean_abs_errors_df.values],
-                'MSE' : [mse_df.values],
-                'RMSE' : [rmse_df.values],
-                'Min' : [min_df.values],
-                "Max" : [max_df.values]
+                'Model' : model_name,
+                'me' : mean_errors_df.values,
+                'MAE' :  mean_abs_errors_df.values,
+                'MSE' : mse_df.values,
+                'RMSE' : rmse_df.values,
+                'Min' : min_df.values,
+                "Max" : max_df.values
             }
     df = pd.DataFrame(data)
     # Calculate Mean Absolute Error (MAE)
@@ -202,13 +202,14 @@ def test_model(model, num_classes, test_loader, device, plot=False, model_name=N
         loaded_df = None
         try:
             loaded_df = pd.read_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv')
+            
+            if not loaded_df['model'].str.contains(train_y).any(): #TODO
+                    # Create a new row to insert
+                loaded_df =  pd.concat([loaded_df, df]) #, ignore_index=True
+                loaded_df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv', index=False)
         except: 
-            df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv')
-        
-        if not loaded_df['model'].str.contains(train_y).any(): #TODO
-            # Create a new row to insert
-            loaded_df =  pd.concat([loaded_df, df], ignore_index=True)
-            loaded_df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv')
+            df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv', index=False)
+
     else:
         data = {
                 'Model' : [model_name],

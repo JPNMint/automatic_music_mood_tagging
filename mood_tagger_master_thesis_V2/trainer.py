@@ -24,8 +24,8 @@ from train import *
 
 @hydra.main(version_base=None, config_path="configs", config_name="default")
 
-
-def trainer(cfg: DictConfig) -> None:
+##NEXT ALL CONV 01 NAIVE OVERSAMPLE
+def trainer(cfg: DictConfig) -> None: 
     GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']
 
     print(OmegaConf.to_yaml(cfg))

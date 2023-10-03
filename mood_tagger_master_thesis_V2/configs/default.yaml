@@ -1,25 +1,25 @@
 model:
-  architecture: allconv_complex #allconv_complex #'musicnn' #'' #allconv_02 #transfer_learning_seq #transfer_learning  
+  architecture: allconv_01 #allconv_complex #'musicnn' #'' #allconv_02 #transfer_learning_seq #transfer_learning  
   ##'' ##allconv_01 #'allconv_complex2' #allconv_01 #'musicnn' #'allconv_01_single' #'allconv_complex2' #'musicnn' #allconv_01' #'allconv_complex' #'allconv_01' #
   audio_inputs: True
 
 datasets:
   names: ['emma_gems9']
   scale: None  #None #'StandardScaler' #'RobustScaler' #'MinMax' #'MaxAbs'
-  oversampling : True
+  oversampling : False
   oversampling_tolerance: 10
 
 features:
-  frame_rate: 5 #10 #5 standard 5
-  window_size: 8192  
+  frame_rate: 5 #100 #5 #10 #5 standard 5
+  window_size: 8192 #44100 #8192  
   sample_rate: 44100 #16000 
   freq_bins: 200
 
 
 training:
-  learning_rate:  1e-1 #1e-2 # 1e-1 #1e-2
-  sequence_length: 150 # 75 #BEST NOW 75 #15 #150 #15 #standard 150
-  sequence_hop: 50 #15
+  learning_rate:  1e-1  #1e-2 # 1e-1 #1e-2
+  sequence_length: 150 # 300 #BEST NOW 75 #15 #150 #15 #standard 150
+  sequence_hop: 50 #150 #50 
   k_samples: 1e5
   batch_size: 32 #25 #32
   validation_size: 0.5

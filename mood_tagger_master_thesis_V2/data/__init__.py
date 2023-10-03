@@ -212,7 +212,7 @@ class RandomPartitioner:
         #self.train_names = [self.names[index] for index in self.train_indices]
 ###########
         ##oversampling
-        smogn = True
+        smogn = False
         if self.oversampling == True:
 
             #####smogn approach#### 3.86 trancsendence ohne smogn

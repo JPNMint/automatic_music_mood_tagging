@@ -1,0 +1,10 @@
+,Unnamed: 0.7,Unnamed: 0.6,Unnamed: 0.5,Unnamed: 0.4,Unnamed: 0.3,Unnamed: 0.2,Unnamed: 0.1,Unnamed: 0,Model,me,MAE,MSE,RMSE,Min,Max,model,y
+0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,allconv_complex,[1.2320249],[5.0920787],[36.89959],[6.0745034],[-13.897776],[13.272986],allconv_complex,Wonder
+1,1.0,1.0,1.0,1.0,1.0,1.0,0.0,,allconv_complex,[1.6545563],[3.6392336],[21.333748],[4.618847],[-5.6151805],[12.495279],allconv_complex,Transcendence
+2,2.0,2.0,2.0,2.0,2.0,0.0,,,allconv_complex,[1.5788065],[5.6790986],[49.36262],[7.0258536],[-20.825901],[15.1676855],allconv_complex,Nostalgia
+3,3.0,3.0,3.0,3.0,0.0,,,,allconv_complex,[-1.3940333],[5.0346212],[43.918865],[6.627131],[-21.671349],[12.494199],allconv_complex,Tenderness
+4,4.0,4.0,4.0,0.0,,,,,allconv_complex,[8.250681],[9.308357],[133.56104],[11.556861],[-6.2345066],[27.579391],allconv_complex,Peacfulness
+5,5.0,5.0,0.0,,,,,,allconv_complex,[1.3986648],[7.7638483],[91.341866],[9.557294],[-19.90932],[18.935492],allconv_complex,Joy
+6,6.0,0.0,,,,,,,allconv_complex,[2.8132303],[6.9561405],[85.71387],[9.258179],[-32.983093],[23.09898],allconv_complex,Power
+7,0.0,,,,,,,,allconv_complex,[2.6711793],[7.804611],[110.63744],[10.518434],[-29.228153],[35.405655],allconv_complex,Tension
+0,,,,,,,,,allconv_complex,[1.2042147],[2.8366818],[14.050099],[3.7483463],[-16.903229],[5.361746],allconv_complex,Sadness
