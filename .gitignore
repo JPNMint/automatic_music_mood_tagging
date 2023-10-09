@@ -192,3 +192,5 @@ mood_tagger_master_thesis_V2/musicnn_pons/
 music-audio-representations/
 
 vggish_model.ckpt
+
+resreg/
