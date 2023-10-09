@@ -89,7 +89,15 @@ def run(run_path = None):
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     #TODO metrics
-    test_model(model, NUM_CLASSES, test_loader, device, plot=True, model_name=cfg.model.architecture, transform = cfg.training.transformation, scale = scale)
+    csv_information = {
+                'Model' : cfg.model.architecture,
+                #'resampling' : cfg.resampling,
+                'Labels' : [cfg.datasets.labels],
+                'lr' : cfg.training.learning_rate
+
+
+            }
+    test_model(model, NUM_CLASSES, test_loader, device, plot=True, model_name=cfg.model.architecture, transform = cfg.training.transformation, scale = scale , csv_information = csv_information)
 
 
 if __name__ == "__main__":

@@ -70,3 +70,12 @@ model.load_state_dict(pretrained_dict)
 3. add data aug fine tuning etc
 
 https://github.com/PandoraMedia/music-audio-representations
+
+
+
+
+resampling TODO
+
+https://github.com/jafetgado/resreg
+
+https://arxiv.org/pdf/2102.09554.pdf#cite.branco2017smogn

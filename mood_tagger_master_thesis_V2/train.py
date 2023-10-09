@@ -127,7 +127,7 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
     feat_settings = FeatureSetup(
         "mood_feat", feat_sample_rate, 1, feat_frame_rate, feat_window_size, cfg.features.freq_bins, 30, False, "log", "log_1"
     )
-
+    ######loading data
     test_loader, train_loader, valid_loader = load_data(batch_size,
                                                         feat_settings,
                                                         gpu_num,
@@ -190,17 +190,26 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
         minimize_valid_metric=True,
         callbacks=callbacks,
     )
-    if isinstance(GEMS_9, str):
-        test_model(model, num_classes, test_loader, engine.device, transform = cfg.training.transformation, training = 'training', scale = scale, model_name = cfg.model.architecture , train_y = GEMS_9)
-    else:
-        test_model(model, num_classes, test_loader, engine.device, transform = cfg.training.transformation, training = 'training', scale = scale, model_name = cfg.model.architecture )
+
+    csv_information = {
+                'Model' : cfg.model.architecture,
+                #'resampling' : cfg.resampling,
+                'Labels' : [cfg.datasets.labels],
+                'lr' : cfg.training.learning_rate
+
+
+            }
+    # if isinstance(GEMS_9, str):
+    #     test_model(model, num_classes, test_loader, engine.device, transform = cfg.training.transformation, training = 'training', scale = scale, model_name = cfg.model.architecture , train_y = GEMS_9)
+    # else:
+    test_model(model, num_classes, test_loader, engine.device, transform = cfg.training.transformation, training = 'training', scale = scale, model_name = cfg.model.architecture, csv_information = csv_information )
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="default")
 def my_app(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg))
 
-    run_training(cfg)
+    run_training(cfg, GEMS_9= cfg.datasets.labels)
 
 
 if __name__ == "__main__":

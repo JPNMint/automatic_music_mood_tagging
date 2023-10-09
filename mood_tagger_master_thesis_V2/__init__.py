@@ -7,7 +7,7 @@ import importlib.util
 from sklearn.metrics import auc, precision_recall_fscore_support, roc_auc_score, average_precision_score
 from pathlib import Path
 import pickle
-
+from itertools import chain
 from data import GEMS_9, plot_data, generate_dataframe
 
 ROOT_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -55,7 +55,7 @@ def calcAUC(predictions, annotations, n_classes):
     return roc_aucs, pr_aucs
 
 
-def test_model(model, num_classes, test_loader, device, plot=False, model_name=None, transform = None, training = 'test', scale = None , train_y = None):
+def test_model(model, num_classes, test_loader, device, csv_information, plot=False, model_name=None, transform = None, training = 'test', scale = None , train_y = None):
     if transform == 'log':
         print('Output data is log transform, applying np.exp to output.')
     if scale == 'None':
@@ -195,31 +195,86 @@ def test_model(model, num_classes, test_loader, device, plot=False, model_name=N
     print(df) 
     df['model'] = model_name
 
-    if isinstance(train_y, str):
-        #change into write
-        df['y']  = train_y
-        #concatenated_df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv')
-        loaded_df = None
-        try:
-            loaded_df = pd.read_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv')
+    # if isinstance(train_y, str):
+    #     #change into write
+    #     df['y']  = train_y
+    #     #concatenated_df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv')
+    #     loaded_df = None
+    #     try:
+    #         loaded_df = pd.read_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv')
             
-            if not loaded_df['model'].str.contains(train_y).any(): #TODO
-                    # Create a new row to insert
-                loaded_df =  pd.concat([loaded_df, df]) #, ignore_index=True
-                loaded_df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv', index=False)
-        except: 
-            df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv', index=False)
+    #         if not loaded_df['model'].str.contains(train_y).any(): #TODO
+    #                 # Create a new row to insert
+    #             loaded_df =  pd.concat([loaded_df, df]) #, ignore_index=True
+    #             loaded_df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv', index=False)
+    #     except: 
+    #         df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv', index=False)
 
-    else:
-        data = {
+    # else:
+    #     data = {
+    #             'Model' : [model_name],
+    #             'me' : [np.mean(mean_errors_df)],
+    #             'MAE' :  [np.mean(mean_abs_errors_df)],
+    #             'MSE' : [np.mean(mse_df)],
+    #             'RMSE' : [np.mean(rmse_df)]
+    #         }
+    #     df = pd.DataFrame(data)
+    #     df.to_csv(Path.cwd() / f'/mood_tagger_master_thesis_V2/performance/model_performance.csv')
+
+
+
+    
+
+    evaluation = {
                 'Model' : [model_name],
-                'me' : [np.mean(mean_errors_df)],
+                'ME' : [np.mean(mean_errors_df)],
                 'MAE' :  [np.mean(mean_abs_errors_df)],
                 'MSE' : [np.mean(mse_df)],
                 'RMSE' : [np.mean(rmse_df)]
             }
-        df = pd.DataFrame(data)
-        df.to_csv(Path.cwd() / f'/mood_tagger_master_thesis_V2/performance/model_performance.csv')
+    
+
+    csv_information.update(evaluation)
+
+    csv_information_df = pd.DataFrame(csv_information)
+
+    ## if csv file does not exist, create blank file
+    import csv
+    if not os.path.isfile('mood_tagger_master_thesis_V2/performance/model_performance_list.csv'):
+        header = ['Model', 'Labels', 'lr', 'ME', 'MAE', 'MSE', 'RMSE']
+        with open('mood_tagger_master_thesis_V2/performance/model_performance_list.csv', 'w') as file:
+            writer = csv.writer(file)
+            writer.writerow(header) 
+
+    csv_file = pd.read_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv')
+    
+    cur_model = csv_information['Model'][0]
+    cur_labels = f"{csv_information['Labels'][0]}"
+    cur_lr = csv_information['lr']
+
+
+    #TODO 
+    if not csv_file.empty:
+        #TODO HIER IST DER FEHLER
+        ## Abrunden von Werten die sehr niedrig
+        # if any(csv_file['Labels'].apply(lambda x: x == cur_labels)):!!!!!!!!!!!!!
+        #     print('Triggered')!!!!!!!!!!
+        print((csv_file['Model'] == cur_model))
+        print((csv_file['lr'] == cur_lr))
+        print((csv_file['Labels'] == cur_labels))
+        condition = (csv_file['Model'] == cur_model) & (csv_file['lr'] == cur_lr)  & (csv_file['Labels'] == cur_labels)
+        if any(condition):
+            csv_file = csv_file[~condition]
+            #csv_file[condition] = csv_information_df
+            new_csv = pd.concat([csv_file, csv_information_df])
+
+        else:
+            new_csv = pd.concat([csv_file, csv_information_df])
+    else:
+        new_csv = pd.concat([csv_file, csv_information_df])
+
+    print(Path.cwd())
+    new_csv.to_csv(Path.cwd()  /'mood_tagger_master_thesis_V2/performance/model_performance_list.csv', index=False)
 
 
 

@@ -1,0 +1,3 @@
+Model,Labels,lr,ME,MAE,MSE,RMSE
+allconv_01,"['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']",0.1,-1.835085153579712,9.385616302490234,146.49403381347656,11.149454116821287
+allconv_02,"['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']",0.1,-1.0133293867111206,8.135034561157227,116.68350219726562,10.05414867401123
