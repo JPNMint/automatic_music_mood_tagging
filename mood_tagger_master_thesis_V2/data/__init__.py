@@ -12,6 +12,7 @@ from data.sets import SnippetDataset, FramesToSamples, ListDataset
 from torch.utils.data import DataLoader
 from pathlib import Path
 import pickle
+from denseweight import DenseWeight
 
 
 SAMPLE_RATE = 44100
@@ -316,7 +317,7 @@ def load_data(
         scale = None,
         mode = 'train',
         oversampling = False,
-        tolerance = 20,
+        tolerance = 20
     
         
 ):
@@ -372,17 +373,27 @@ def load_data(
         filename_StandardScaler = Path().resolve()/f"mood_tagger_master_thesis_V2/Scaler/StandardScaler.sav"
         pickle.dump(transformer, open(filename_StandardScaler, 'wb'))
 
-    
+
     targs = annots
     names = [entry.get_name() for entry in entries]
     genres = [entry.get_genre() for entry in entries]
 
 
 
+
     if transform == 'log':
         targs = np.log(np.array(targs)+1)
         annots = np.log(np.array(annots)+1)
- 
+
+    #Labels filter
+    gems_label_pos = ['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']
+    label_idx = []
+
+    for i in train_y:
+        label_idx.append(gems_label_pos.index(i))
+    targs = np.take(targs, label_idx, axis = 1)
+    annots = targs
+    
 
     partitioner = RandomPartitioner(feats, annots, targs, names, genres, 42, train_y, mode = mode, tolerance = tolerance, oversampling = oversampling)
 
@@ -392,6 +403,18 @@ def load_data(
     pin_memory = gpu_num > -1
     train_feats, train_annots, train_targs, train_names, train_genres = partitioner.get_split('train')
     
+    # import resreg
+    # resampling = False
+    # if resampling:
+    #     #TODO implement here
+    #     relevance = resreg.sigmoid_relevance(annots, cl=None, ch=np.percentile(annots, 90))
+
+    #     X_train_res, y_train_res = resreg.random_oversample(train_feats, train_annots, relevance,
+    #                                                   relevance_threshold=0.5,
+    #                                                   over='balance')
+    #     #continue
+
+
     frames_to_samples = FramesToSamples(hop_size=feat_settings.hop_size, window_size=feat_settings.frame_size)
     train_set = SnippetDataset(train_feats, train_targs,
                                seq_len,
@@ -456,7 +479,7 @@ def load_data(
     assert len(matching_indices) == 0
 
 
-    return test_loader, train_loader, valid_loader
+    return test_loader, train_loader, valid_loader, annots
 
 
 def generate_plots():

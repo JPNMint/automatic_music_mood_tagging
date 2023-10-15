@@ -134,7 +134,11 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
+musicnn_env3.8/
+musicnn_env3.9/
+Sota_env3.8/
+env3.8/
+env3.9/
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -186,11 +190,16 @@ mood_tagger_venv/
 figures/
 mood_tagger_master_thesis_V2/data/cache/
 mood_tagger_master_thesis_V2/data/audio/
+mood_tagger_master_thesis_V2/data/audio_embeddings_features/
+
 mood_tagger_master_thesis_V2/emma/
 mood_tagger_master_thesis_V2/musicnn_pons/
 
 music-audio-representations/
-
+music-audio-representations/
 vggish_model.ckpt
 
 resreg/
+
+
+mood_tagger_master_thesis_V2/transfer_learning/

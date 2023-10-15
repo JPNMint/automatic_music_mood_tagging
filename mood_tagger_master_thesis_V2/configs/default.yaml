@@ -1,5 +1,5 @@
 model:
-  architecture: allconv_02 #allconv_complex #'musicnn' #'' #allconv_02 #transfer_learning_seq #transfer_learning  
+  architecture: allconv_01  #allconv_complex #'musicnn' #'' #allconv_02 #transfer_learning_seq #transfer_learning  
   ##'' ##allconv_01 #'allconv_complex2' #allconv_01 #'musicnn' #'allconv_01_single' #'allconv_complex2' #'musicnn' #allconv_01' #'allconv_complex' #'allconv_01' #
   audio_inputs: True
 
@@ -8,8 +8,9 @@ datasets:
   scale: None  #None #'StandardScaler' #'RobustScaler' #'MinMax' #'MaxAbs'
   oversampling : False
   oversampling_tolerance: 10
-  labels: ['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']
-
+  labels: ['Nostalgia'] #['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']
+  loss_func: "dense_weight" #'dense_weight'
+  dense_weight_alpha: 4
 features:
   frame_rate: 5 #100 #5 #10 #5 standard 5
   window_size: 8192 #44100 #8192  
@@ -20,13 +21,13 @@ features:
 training:
   learning_rate:  0.1 #1e-1  #1e-2 # 1e-1 #1e-2
   sequence_length: 150 # 300 #BEST NOW 75 #15 #150 #15 #standard 150
-  sequence_hop: 50 #150 #50 
+  sequence_hop: 40 #150 #50 
   k_samples: 1e5
-  batch_size: 32 #25 #32
+  batch_size: 40 #25 #32
   validation_size: 0.5
   memory_map: True
   num_data_threads: 8
   max_num_epochs: 999999
-  patience: 1 #20 #15
+  patience: 20 #20 #15
   refinements: 3
   transformation: None #'reciprocal' #'log'

@@ -16,8 +16,10 @@ from torch import nn, optim
 from catalyst.engines.torch import GPUEngine
 
 
+from denseweight import DenseWeight
+
 from __init__  import get_architecture, test_model
-from data import load_data, FeatureSetup, NUM_CLASSES
+from data import load_data, FeatureSetup #, NUM_CLASSES
 #export PYTHONPATH="$PWD/"
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -85,6 +87,8 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
 
     oversampling = cfg.datasets.oversampling
     tolerance = cfg.datasets.oversampling_tolerance
+    loss_func = cfg.datasets.loss_func
+
 
     hydra_base_dir = HydraConfig.get().runtime.output_dir
     catalyst_out_dir = os.path.join(hydra_base_dir, 'catalyst')
@@ -96,10 +100,11 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
         print(f"Output dir: {hydra_base_dir}")
 
         shutil.copy(architecture_file, os.path.join(model_out_dir, os.path.split(architecture_file)[1]))
-    if isinstance(GEMS_9, str):
-        num_classes = 1
-    else:
-        num_classes = NUM_CLASSES
+    # if isinstance(GEMS_9, str):
+    #     num_classes = 1
+    # else:
+    #     num_classes = NUM_CLASSES
+    num_classes = len(GEMS_9)
     num_spec_bins = 100
     num_channels = 1
 
@@ -128,7 +133,7 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
         "mood_feat", feat_sample_rate, 1, feat_frame_rate, feat_window_size, cfg.features.freq_bins, 30, False, "log", "log_1"
     )
     ######loading data
-    test_loader, train_loader, valid_loader = load_data(batch_size,
+    test_loader, train_loader, valid_loader, targets_all = load_data(batch_size,
                                                         feat_settings,
                                                         gpu_num,
                                                         hop_size,
@@ -144,8 +149,24 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
                                                         oversampling = oversampling,
                                                         tolerance = tolerance,
                                                         train_y = GEMS_9) 
+    if loss_func == 'dense_weight':
+        print(f'Custom Loss function {loss_func}!')
+        criterion = dense_weight_loss(cfg.datasets.dense_weight_alpha, targets_all = targets_all)
 
-    criterion = nn.MSELoss() #torch.nn.SmoothL1Loss()   nn.CrossEntropyLoss()
+    elif loss_func == 'MAE':
+        
+        criterion = nn.L1Loss() #nn.MSELoss() #torch.nn.SmoothL1Loss()   nn.CrossEntropyLoss()
+        print("MAE Loss Function!")
+    elif loss_func == 'MSE':
+        
+        criterion = nn.MSELoss() #nn.MSELoss() #torch.nn.SmoothL1Loss()   nn.CrossEntropyLoss()
+        print("MSE Loss Function!")
+    else:
+        
+        criterion = nn.L1Loss() #nn.MSELoss() #torch.nn.SmoothL1Loss()   nn.CrossEntropyLoss()
+        print("No Loss Function set, use default!")
+        loss_func = 'MAE'
+
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     from catalyst.utils.torch import get_available_engine
@@ -190,12 +211,21 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
         minimize_valid_metric=True,
         callbacks=callbacks,
     )
+    
+    if loss_func != 'dense_weight':
+        alpha = 0
+    else:
+        alpha = cfg.datasets.dense_weight_alpha
 
     csv_information = {
                 'Model' : cfg.model.architecture,
                 #'resampling' : cfg.resampling,
                 'Labels' : [cfg.datasets.labels],
-                'lr' : cfg.training.learning_rate
+                'lr' : cfg.training.learning_rate,
+                'loss_function' : loss_func,
+                'dense_weight_alpha': alpha ,
+                'batch size' : cfg.training.batch_size,
+                'snippet_duration_s' : snippet_duration_s
 
 
             }
@@ -203,6 +233,59 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
     #     test_model(model, num_classes, test_loader, engine.device, transform = cfg.training.transformation, training = 'training', scale = scale, model_name = cfg.model.architecture , train_y = GEMS_9)
     # else:
     test_model(model, num_classes, test_loader, engine.device, transform = cfg.training.transformation, training = 'training', scale = scale, model_name = cfg.model.architecture, csv_information = csv_information )
+
+
+class dense_weight_loss(nn.Module):
+    # cite https://github.com/SteiMi/denseweight 
+    # use of package denseweight to calculate weights
+    def __init__(self ,alpha, targets_all):
+        super(dense_weight_loss, self).__init__()
+        #put it before as input? as in fit it not in the class?
+        self.dw = DenseWeight(alpha=alpha)
+        self.dw.fit(targets_all)
+    def forward(self, predictions, targets):
+        try:
+
+            targs = targets.cpu().detach().numpy()
+            weighted_targs = self.dw(targs)
+            relevance = torch.from_numpy(weighted_targs).to(torch.device("cuda:0"))
+        except ValueError:
+            print(
+                        'WARNING!)'
+                    )
+            relevance = torch.ones_like(targets)
+
+        err = torch.pow(predictions - targets, 2)
+        err_weighted = relevance * err
+        mse = err_weighted.mean()
+
+        return mse
+
+
+    
+
+
+# def dense_weight_loss(self, labels: torch.Tensor, preds: torch.Tensor) -> torch.Tensor:
+
+    
+
+#     try:
+#         dw = DenseWeight(alpha=1.0)
+#         #relevance = torch.from_numpy(self.target_relevance(labels.numpy()))
+#         relevance = dw.fit(labels.numpy())
+#     except AttributeError:
+#         print(
+#                     'WARNING: self.target_relevance does not exist yet! (This is normal once at the beginning when\
+#                        lightning tests things)'
+#                 )
+#         relevance = torch.ones_like(labels)
+
+#     err = torch.pow(preds - labels, 2)
+#     err_weighted = relevance * err
+#     mse = err_weighted.mean()
+
+#     return mse
+
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="default")

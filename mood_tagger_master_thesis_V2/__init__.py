@@ -120,12 +120,7 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
         prediction_genres.append(test_genre[0])
         actual.append(test_targ.cpu().numpy()[0])
 
-        #mean_abs_errors += np.abs(error)
-        #mean_errors += error
-        #mean_squared_errors += error**2
 
-        #maximums = np.maximum(maximums, model_outs)
-        #minimums = np.minimum(minimums, model_outs)
     
    # testing = loaded_scaler.inverse_transform(predictions) 
     if scale is not None: 
@@ -148,7 +143,7 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
     if isinstance(train_y, str):
         error_df = pd.DataFrame(errors)#, columns=[train_y]
     else:
-        error_df = pd.DataFrame(errors, columns=GEMS_9)
+        error_df = pd.DataFrame(errors, columns=train_y)
     mean_errors_df = error_df.mean()
     mean_abs_errors_df = error_df.abs().mean()
     mse_df = (error_df**2).mean()
@@ -160,7 +155,7 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
 
     data = {
                 'Model' : model_name,
-                'me' : mean_errors_df.values,
+                'ME' : mean_errors_df.values,
                 'MAE' :  mean_abs_errors_df.values,
                 'MSE' : mse_df.values,
                 'RMSE' : rmse_df.values,
@@ -168,24 +163,7 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
                 "Max" : max_df.values
             }
     df = pd.DataFrame(data)
-    # Calculate Mean Absolute Error (MAE)
 
-    #mean_abs_errors = np.mean(np.abs(predictions - actual))
-    
-    # Calculate Mean Error (ME)
-    #mean_errors = np.mean(predictions - actual)
-
-    # Calculate Mean Squared Error (MSE)
-    #mse = np.mean((predictions - actual) ** 2)
-
-    # Calculate Root Mean Squared Error (RMSE)
-    #rmse = np.sqrt(mse)
-
-    
-    #mean_abs_errors /= num_examples
-    #mean_errors /= num_examples
-    #mean_squared_errors /= num_examples
-    #rmse = np.sqrt(mean_squared_errors)
 
     def ff(array):
         return np.array2string(array, precision=2, separator=' \t ', suppress_small=True)
@@ -194,33 +172,6 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
 
     print(df) 
     df['model'] = model_name
-
-    # if isinstance(train_y, str):
-    #     #change into write
-    #     df['y']  = train_y
-    #     #concatenated_df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv')
-    #     loaded_df = None
-    #     try:
-    #         loaded_df = pd.read_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv')
-            
-    #         if not loaded_df['model'].str.contains(train_y).any(): #TODO
-    #                 # Create a new row to insert
-    #             loaded_df =  pd.concat([loaded_df, df]) #, ignore_index=True
-    #             loaded_df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv', index=False)
-    #     except: 
-    #         df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_trainer.csv', index=False)
-
-    # else:
-    #     data = {
-    #             'Model' : [model_name],
-    #             'me' : [np.mean(mean_errors_df)],
-    #             'MAE' :  [np.mean(mean_abs_errors_df)],
-    #             'MSE' : [np.mean(mse_df)],
-    #             'RMSE' : [np.mean(rmse_df)]
-    #         }
-    #     df = pd.DataFrame(data)
-    #     df.to_csv(Path.cwd() / f'/mood_tagger_master_thesis_V2/performance/model_performance.csv')
-
 
 
     
@@ -240,9 +191,9 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
 
     ## if csv file does not exist, create blank file
     import csv
-    if not os.path.isfile('mood_tagger_master_thesis_V2/performance/model_performance_list.csv'):
-        header = ['Model', 'Labels', 'lr', 'ME', 'MAE', 'MSE', 'RMSE']
-        with open('mood_tagger_master_thesis_V2/performance/model_performance_list.csv', 'w') as file:
+    if not os.path.isfile('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv'):
+        header = ['Model', 'Labels', 'lr', 'custom_loss', 'dense_weight_alpha', 'snippet_duration_s', 'batch size', 'ME', 'MAE', 'MSE', 'RMSE']
+        with open('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv', 'w') as file:
             writer = csv.writer(file)
             writer.writerow(header) 
 
@@ -251,6 +202,12 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
     cur_model = csv_information['Model'][0]
     cur_labels = f"{csv_information['Labels'][0]}"
     cur_lr = csv_information['lr']
+    cur_loss = csv_information['loss_function']
+    cur_alpha = csv_information['dense_weight_alpha']
+    cur_duration = csv_information['snippet_duration_s']
+    cur_batch = csv_information['batch size']
+
+
 
 
     #TODO 
@@ -259,12 +216,11 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
         ## Abrunden von Werten die sehr niedrig
         # if any(csv_file['Labels'].apply(lambda x: x == cur_labels)):!!!!!!!!!!!!!
         #     print('Triggered')!!!!!!!!!!
-        print((csv_file['Model'] == cur_model))
-        print((csv_file['lr'] == cur_lr))
-        print((csv_file['Labels'] == cur_labels))
-        condition = (csv_file['Model'] == cur_model) & (csv_file['lr'] == cur_lr)  & (csv_file['Labels'] == cur_labels)
+        condition = (csv_file['Model'] == cur_model) & (csv_file['lr'] == cur_lr)  & (csv_file['Labels'] == cur_labels) & ( csv_file['loss_function'] == cur_loss) & (csv_file['dense_weight_alpha'] == cur_alpha) & (csv_file['snippet_duration_s'] == cur_duration) & (csv_file['batch size'] == cur_batch)
+
         if any(condition):
             csv_file = csv_file[~condition]
+            print(csv_file)
             #csv_file[condition] = csv_information_df
             new_csv = pd.concat([csv_file, csv_information_df])
 
@@ -274,7 +230,7 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
         new_csv = pd.concat([csv_file, csv_information_df])
 
     print(Path.cwd())
-    new_csv.to_csv(Path.cwd()  /'mood_tagger_master_thesis_V2/performance/model_performance_list.csv', index=False)
+    new_csv.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv', index=False)
 
 
 
