@@ -53,7 +53,7 @@ class Net(torch.nn.Module):
         config_path = os.path.join(hydra_run_path, 'config.yaml')
         cfg = OmegaConf.load(config_path)
 
-        architecture, architecture_file = get_architecture('musicnn_transfer', None)
+        architecture, architecture_file = get_architecture('musicnn_arch', None)
 
         self.pretrained_model  = architecture(audio_input=cfg.model.audio_inputs, num_classes=9, debug=False, **cfg.features)
         print(f'Pretrained model: {cfg.model.architecture}')
@@ -69,10 +69,10 @@ class Net(torch.nn.Module):
         # 3. load the new state dict
         self.pretrained_model.load_state_dict(pretrained_dict)
         #Set the model to evaluation mode
-        # self.pretrained_model.eval()
+        self.pretrained_model.eval()
         # print('Freeze pretrained model!')
-        # for param in self.pretrained_model .parameters():
-        #    param.requires_grad = False
+        for param in self.pretrained_model.parameters():
+            param.requires_grad = False
             
 
 
@@ -129,12 +129,10 @@ class Net(torch.nn.Module):
 
             torch.nn.Dropout2d(self.dropout_p),
             #used same output dim as last layer of musicnn
-            torch.nn.Conv2d(in_channels=8 * channel_base, out_channels=8 * channel_base, kernel_size=(1, 1), padding="same"), #200 oder  self.num_classes
-            torch.nn.ELU(),
-            torch.nn.BatchNorm2d(8 * channel_base) , #self.num_classes),
-            torch.nn.AdaptiveAvgPool2d(output_size=(1, 1)),
 
-            torch.nn.ReLU()
+            torch.nn.AdaptiveAvgPool2d(output_size=(1, 1)),
+            torch.nn.ReLU(),
+            
         )
 
 
@@ -169,8 +167,8 @@ class Net(torch.nn.Module):
 
         scores = x.squeeze([2,3])
 
-        ### 
         # research transfer learning concat
+
         out = torch.cat([scores, pre_trained_output], 1)
        
        #dense layers

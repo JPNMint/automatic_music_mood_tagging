@@ -229,7 +229,7 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
     else:
         new_csv = pd.concat([csv_file, csv_information_df])
 
-    print(Path.cwd())
+
     new_csv.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv', index=False)
 
 

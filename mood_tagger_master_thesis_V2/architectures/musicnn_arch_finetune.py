@@ -77,7 +77,14 @@ class Net(torch.nn.Module):
         self.relu = torch.nn.ReLU()
         self.dropout = torch.nn.Dropout(0.5)
         #self.dense2 = torch.nn.Linear(dense_channel, num_classes)
-
+        self.postprocess = torch.nn.Sequential(
+        #                     torch.nn.Linear(200,100),
+        #                     torch.nn.Dropout(p = 0.5),
+        #                     torch.nn.Linear(100,50),
+        #                     torch.nn.Dropout(p = 0.5),
+        #                     torch.nn.Linear(50,25),
+        #                     torch.nn.Linear(25,num_classes)                       
+                                 )
 
     def forward(self, x_input: torch.Tensor) -> torch.Tensor:
 
@@ -124,10 +131,14 @@ class Net(torch.nn.Module):
         ## dense
         out = self.relu(self.bn(self.dense1(out)))
         out = self.dropout(out)
-        #out = torch.nn.Sigmoid()(out)
 
-        scores = out
-        return scores #scores.view(-1, self.num_classes)
+        #out = torch.nn.Sigmoid()(out)
+        x = out
+        for cur_layer in self.postprocess:
+            x = cur_layer(x)
+        
+
+        return x #scores.view(-1, self.num_classes)
 
     def is_sequential(self):
         return self._sequential

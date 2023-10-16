@@ -62,7 +62,13 @@ class CustomRunner(dl.Runner):
 def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']) -> None:
     torch.cuda.empty_cache()
     time_t0 = time.time()
+
+
+
+    
     architecture, architecture_file = get_architecture(cfg.model.architecture)
+
+
     use_audio_in = cfg.model.audio_inputs
     gpu_num = 0
     k_samples = cfg.training.k_samples
@@ -93,7 +99,7 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
     hydra_base_dir = HydraConfig.get().runtime.output_dir
     catalyst_out_dir = os.path.join(hydra_base_dir, 'catalyst')
     model_out_dir = os.path.join(hydra_base_dir, 'models')
-    if not isinstance(GEMS_9, str):
+    if not isinstance(GEMS_9, str) and cfg.model.architecture != 'vgg_freeze':
 
         os.makedirs(catalyst_out_dir)
         os.makedirs(model_out_dir)
@@ -119,7 +125,9 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
     print(f'snippet duration{snippet_duration_s} ')
     snippet_hop_s = fft_hop_size * (hop_size ) / feat_sample_rate
 
+
     model = architecture(audio_input=use_audio_in, num_classes=num_classes, debug=True, **cfg.features)
+
     if use_audio_in:
         in_size = (batch_size, int((seq_len - 1) * (feat_sample_rate / feat_frame_rate) + feat_window_size))
     else:
@@ -127,7 +135,52 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
     output = model.forward(torch.Tensor(np.zeros(in_size)))
     print(output.shape)
 
+
     model = architecture(audio_input=use_audio_in, num_classes=num_classes, **cfg.features)
+
+    ##########Finetuning pretrained model
+    if cfg.model.architecture == 'musicnn_arch_finetune':
+        run_path_pretrained = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/architectures/SotA' #musicnn mse loss
+        # hydra_run_path = os.path.join(run_path_pretrained, '.hydra')
+        # config_path = os.path.join(hydra_run_path, 'config.yaml')
+        # cfg = OmegaConf.load(config_path)
+
+
+        pretrained_model  = architecture(audio_input=cfg.model.audio_inputs, num_classes=9, debug=False, **cfg.features)
+        print(f'Pretrained model: {cfg.model.architecture}')
+        pretrained_dict = torch.load('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/architectures/SotA/musicnn_sota.pth')
+        del pretrained_dict['dense2.weight']
+        del pretrained_dict['dense2.bias']
+        #for param in pretrained_model.parameters():
+           # param.requires_grad = False
+        
+        for name, param in pretrained_model.named_parameters():
+            print(name)
+            if name not in  ['dense1.weight', 'bn.weight', 'dense1.bias', 'bn.bias']:
+                param.requires_grad = False
+
+        model_dict = pretrained_model.state_dict()
+        # 1. filter out unnecessary keys
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        # 2. overwrite entries in the existing state dict
+        model_dict.update(pretrained_dict) 
+        # 3. load the new state dict
+        pretrained_model.load_state_dict(pretrained_dict)
+        pretrained_model.postprocess =  torch.nn.Sequential(
+                            torch.nn.Linear(200,100),
+                            torch.nn.Dropout(p = 0.5),
+                            torch.nn.Linear(100,50),
+                            torch.nn.Dropout(p = 0.5),
+                            torch.nn.Linear(50,25),
+                            torch.nn.Linear(25,num_classes)                       
+                                )
+        model = pretrained_model
+        
+
+        
+        
+
+
 
     feat_settings = FeatureSetup(
         "mood_feat", feat_sample_rate, 1, feat_frame_rate, feat_window_size, cfg.features.freq_bins, 30, False, "log", "log_1"
@@ -196,6 +249,7 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
         callbacks.append(
             dl.EarlyStoppingCallback(patience=patience, loader_key="valid", metric_key="loss", minimize=True))
 
+    
     # model training
     runner.train(
         model=model,
@@ -229,9 +283,6 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
 
 
             }
-    # if isinstance(GEMS_9, str):
-    #     test_model(model, num_classes, test_loader, engine.device, transform = cfg.training.transformation, training = 'training', scale = scale, model_name = cfg.model.architecture , train_y = GEMS_9)
-    # else:
     test_model(model, num_classes, test_loader, engine.device, transform = cfg.training.transformation, training = 'training', scale = scale, model_name = cfg.model.architecture, csv_information = csv_information )
 
 
@@ -265,26 +316,6 @@ class dense_weight_loss(nn.Module):
     
 
 
-# def dense_weight_loss(self, labels: torch.Tensor, preds: torch.Tensor) -> torch.Tensor:
-
-    
-
-#     try:
-#         dw = DenseWeight(alpha=1.0)
-#         #relevance = torch.from_numpy(self.target_relevance(labels.numpy()))
-#         relevance = dw.fit(labels.numpy())
-#     except AttributeError:
-#         print(
-#                     'WARNING: self.target_relevance does not exist yet! (This is normal once at the beginning when\
-#                        lightning tests things)'
-#                 )
-#         relevance = torch.ones_like(labels)
-
-#     err = torch.pow(preds - labels, 2)
-#     err_weighted = relevance * err
-#     mse = err_weighted.mean()
-
-#     return mse
 
 
 
