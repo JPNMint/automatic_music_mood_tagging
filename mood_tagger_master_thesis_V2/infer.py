@@ -2,7 +2,7 @@ from omegaconf import OmegaConf
 import os
 # from hydra import compose
 import json
-
+import numpy as np
 import torch
 
 from __init__ import test_model, get_architecture
@@ -15,7 +15,7 @@ def run(run_path = None):
     # 21-06-42 > conv_02 -> 6 seconds 150
     # 21-11-13 > conv_02 -> 16s 500 seqlen
     if run_path is None:
-        run_path = '/home/ykinoshita/humrec_mood_tagger/outputs/2023-10-12/13-41-19'
+        run_path = '/home/ykinoshita/humrec_mood_tagger/outputs/2023-11-06/12-17-55'
         #run_path = '/home/ykinoshita/humrec_mood_tagger/outputs/2023-09-03/15-11-08' #allconv02 oversampling tol 20 +2
         #run_path = '/home/ykinoshita/humrec_mood_tagger/outputs/2023-09-01/17-43-02' #allconv01 oversampling tol 20 Standard scaler
         #run_path = '/home/ykinoshita/humrec_mood_tagger/outputs/2023-09-01/15-02-58' #allconv01 oversampling tol 20
@@ -64,7 +64,7 @@ def run(run_path = None):
 
     architecture, architecture_file = get_architecture(cfg.model.architecture, model_out_dir)
 
-    model = architecture(audio_input=cfg.model.audio_inputs, num_classes=NUM_CLASSES, debug=False, **cfg.features)
+    model = architecture(audio_input=cfg.model.audio_inputs, num_classes=len(cfg.datasets.labels), debug=False, **cfg.features)
 
     model.load_state_dict(torch.load(best_model_path))
     model.eval()
@@ -74,7 +74,7 @@ def run(run_path = None):
     )
     gpu_num = 0
     scale = cfg.datasets.scale
-    test_loader, train_loader, valid_loader = load_data(cfg.training.batch_size,
+    test_loader, train_loader, valid_loader, train_annot, targets_all   = load_data(cfg.training.batch_size,
                                                         feat_settings,
                                                         gpu_num,
                                                         cfg.training.sequence_hop,
@@ -85,19 +85,36 @@ def run(run_path = None):
                                                         cfg.training.validation_size,
                                                         model.is_sequential(),
                                                         scale = scale,
-                                                        mode = "test")
+                                                        mode = "test",
+                                                        train_y = cfg.datasets.labels) 
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     #TODO metrics
+    fft_hop_size = cfg.features.sample_rate / cfg.features.frame_rate
+    snippet_duration_s = (fft_hop_size * (cfg.training.sequence_length - 1) + cfg.features.window_size) /cfg.features.sample_rate
+    if cfg.datasets.loss_func != 'dense_weight':
+        alpha = 0
+    else:
+        alpha = cfg.datasets.dense_weight_alpha
+
     csv_information = {
                 'Model' : cfg.model.architecture,
                 #'resampling' : cfg.resampling,
                 'Labels' : [cfg.datasets.labels],
-                'lr' : cfg.training.learning_rate
+                'lr' : cfg.training.learning_rate,
+                'loss_function' : cfg.datasets.loss_func,
+                'dense_weight_alpha': alpha ,
+                'batch size' : cfg.training.batch_size,
+                'snippet_duration_s' : snippet_duration_s,
+                'oversampling': cfg.datasets.oversampling,
+                'oversampling_tolerance': cfg.datasets.oversampling_tolerance,
+                'oversampling_ratio' : cfg.datasets.oversampling_ratio,
+                'oversampling_method': cfg.datasets.oversampling_method,
+                'data_augmentation': cfg.datasets.data_augmentation
 
 
             }
-    test_model(model, NUM_CLASSES, test_loader, device, plot=True, model_name=cfg.model.architecture, transform = cfg.training.transformation, scale = scale , csv_information = csv_information)
+    test_model(model, NUM_CLASSES, test_loader, device, plot=False, model_name=cfg.model.architecture, transform = cfg.training.transformation, scale = scale , csv_information = csv_information)
 
 
 if __name__ == "__main__":

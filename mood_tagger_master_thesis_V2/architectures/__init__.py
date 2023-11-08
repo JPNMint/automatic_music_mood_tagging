@@ -1,6 +1,5 @@
 import torch
-from torchaudio.transforms import MelSpectrogram
-
+from torchaudio.transforms import MelSpectrogram, TimeStretch
 
 class LogMelSpec(torch.nn.Module):
     SPEC_LOG_MUL = 1
@@ -22,6 +21,23 @@ class LogMelSpec(torch.nn.Module):
                                              power=1)
 
     def forward(self, x_input):
+        x_input = x_input.cuda()
         calc_mel_spec = self.mel_spec_layer(x_input)
+        #print(x_input.device)
+        # stretch = TimeStretch(n_freq=200).cuda()
+        # calc_mel_spec = stretch(calc_mel_spec, 1.0008) 
+        # calc_mel_spec = calc_mel_spec.cuda()
         y_output = torch.log10(calc_mel_spec * self.spec_log_mul + self.spec_log_add)
-        return y_output
+
+        return y_output.type(torch.cuda.FloatTensor)
+    
+from torch.nn.functional import interpolate
+def data_aug(spec , data_augmentation):
+        spec = spec[:spec.shape[0], :]
+        if 'time_stretch' in data_augmentation:
+            stretch = TimeStretch(n_freq=200).cuda()
+            calc_mel_spec = stretch(spec, 1.20) #0008
+            calc_mel_spec = calc_mel_spec.cuda()
+        
+
+        return calc_mel_spec.type(torch.cuda.FloatTensor)

@@ -13,7 +13,10 @@ from torch.utils.data import DataLoader
 from pathlib import Path
 import pickle
 from denseweight import DenseWeight
-
+import math
+from data.utils import GetKDE, bisection
+from torchaudio.transforms import PitchShift
+from data.create_augmentation import create_augmentation
 
 SAMPLE_RATE = 44100
 
@@ -97,6 +100,57 @@ def remove_special_chars(name_with_chars):
 
     return output_name
 
+class augmented_Entry:
+    def __init__(self, audio_file_name, data_row, train_y, AUG_CACHE_PATH, data_augmentation):
+        self.genre_key = audio_file_name[:1]
+        self.artist_name = data_row.artist
+        self.track_name = data_row.title
+        self.audio_file_name = audio_file_name
+        self.data_row = data_row
+        self.audio_data = None
+        self.train_y = train_y,
+        self.AUG_CACHE_PATH = AUG_CACHE_PATH
+
+    def _get_cache_path(self):
+        
+        base_name, _ = os.path.splitext(self.audio_file_name)
+
+        return os.path.join(self.AUG_CACHE_PATH, base_name.lower()+ '.npy') #+ '_augmented'
+
+    # def _get_full_audio_path(self):
+    #     return os.path.join(AUDIO_PATH, self.audio_file_name)
+
+    def get_audio(self):
+        if self.audio_data is None:
+            cache_file = self.re_cache()
+
+            self.audio_data = np.load(cache_file, mmap_mode= None)#'r')
+        return self.audio_data.reshape(self.audio_data.shape[0],1)
+
+    def re_cache(self):
+        cache_file = self._get_cache_path()
+        if not os.path.exists(cache_file):            
+            create_augmentation(data_augmentation)
+        return cache_file
+
+    def get_gems_9(self):
+        if isinstance(self.train_y, str):
+            return self.data_row[[self.train_y]].to_numpy(dtype=np.float32)
+        # if len(self.train_y) == 1:
+        #     print('Only one variable!')
+        #     print(f'y is {self.train_y}!')
+        #     testing = self.data_row[self.train_y[0]]
+        #     return self.data_row[[self.train_y[0]]].to_numpy(dtype=np.float32)
+        else:
+            return self.data_row[GEMS_9].to_numpy(dtype=np.float32)
+
+    def get_name(self):
+        return f"{self.artist_name} {self.track_name} augmented"
+
+    def get_genre(self):
+        return self.genre_key
+
+
 class Entry:
     def __init__(self, audio_file_name, data_row, train_y):
         self.genre_key = audio_file_name[:1]
@@ -108,7 +162,9 @@ class Entry:
         self.train_y = train_y
 
     def _get_cache_path(self):
+        
         base_name, _ = os.path.splitext(self.audio_file_name)
+
         return os.path.join(CACHE_PATH, base_name.lower() + '.npy')
 
     def _get_full_audio_path(self):
@@ -118,7 +174,7 @@ class Entry:
         if self.audio_data is None:
             cache_file = self.re_cache()
 
-            self.audio_data = np.load(cache_file, mmap_mode='r')
+            self.audio_data = np.load(cache_file, mmap_mode= None)#'r')
         return self.audio_data
 
     def re_cache(self):
@@ -133,6 +189,11 @@ class Entry:
     def get_gems_9(self):
         if isinstance(self.train_y, str):
             return self.data_row[[self.train_y]].to_numpy(dtype=np.float32)
+        # if len(self.train_y) == 1:
+        #     print('Only one variable!')
+        #     print(f'y is {self.train_y}!')
+        #     testing = self.data_row[self.train_y[0]]
+        #     return self.data_row[[self.train_y[0]]].to_numpy(dtype=np.float32)
         else:
             return self.data_row[GEMS_9].to_numpy(dtype=np.float32)
 
@@ -141,6 +202,7 @@ class Entry:
 
     def get_genre(self):
         return self.genre_key
+
 
 
 def match_files(train_y):
@@ -186,9 +248,56 @@ def match_files(train_y):
 
     return entries
 
+def match_files_augmentation(train_y, data_augmentation):
+    emma_df = pd.read_csv(ANNOT_CSV_FILE, encoding="ISO-8859-1")
+    emma_df.dropna(inplace=True)
+    #TODO
+    if data_augmentation in [1,2,4]:
+        AUG_AUDIO_PATH = f'/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/data/cache_augmented_{data_augmentation}'
+    audio_files = os.listdir(AUDIO_PATH)
+    audio_files = [cur_file for cur_file in audio_files if cur_file.endswith('.mp3')]
+    not_found_count = 0
+    matched = 0
+
+    entries = []
+    for col_idx, col_series in emma_df.iterrows():
+        artist_name = col_series.artist
+        track_name = col_series.title
+        if artist_name.lower().startswith('the '):
+            artist_name = artist_name[4:]
+
+        artist_name_ns = remove_special_chars(artist_name)
+        track_name_ns = remove_special_chars(track_name)
+
+        found = False
+
+        for cur_audio_file in audio_files:
+            audio_file_short = cur_audio_file[2:-4]
+            # print(audio_file_short)
+            if len(audio_file_short.split('_')) == 2:
+                audio_artist_name, audio_track_name = audio_file_short.split('_')
+                if audio_artist_name.lower().startswith(artist_name_ns.lower()) and \
+                        track_name_ns[:7].lower().startswith(audio_track_name.lower()):
+                    # audio_track_name.lower() == track_name_ns[:7].lower():
+                    # print(f'    found! {artist_name}  {track_name} == {audio_file_short}')
+                    found = True
+                    matched += 1
+                    entries.append(augmented_Entry(cur_audio_file, col_series, train_y = train_y, AUG_CACHE_PATH = AUG_AUDIO_PATH, data_augmentation = data_augmentation))
+                    break
+            else:
+                print(f"problem with {audio_file_short} - more than 2 parts")
+        if not found:
+            print(f"not found! {artist_name} {track_name}")
+            not_found_count += 1
+
+    print(f"not found count :  {not_found_count}   - matched: {matched}")
+
+    return entries
+
 
 class RandomPartitioner:
-    def __init__(self, feats, annots, targs, names, genres, seed, train_y,mode, tolerance, oversampling = False,test_split=0.15, valid_split=0.15):
+    def __init__(self, feats, annots, targs, names, genres, seed, train_y,mode, tolerance, oversampling_method = None, 
+                oversampling = False,test_split=0.15, valid_split=0.15, os_ratio = 1, data_augmentation = True, data_aug_data = {}):
         self.feats = feats
         self.annots = annots
         self.targs = targs
@@ -208,12 +317,30 @@ class RandomPartitioner:
         self.valid_indices = indices[test_stop:valid_stop]
         self.train_indices = indices[valid_stop:]
         self.oversampling = oversampling
+        self.oversampling_method = oversampling_method
+        if data_augmentation == True:
+            self.aug_feats  = data_aug_data['aug_feats']
+            self.aug_annots = data_aug_data['aug_annots']
+            self.aug_targs = data_aug_data['aug_targs']
+            self.aug_names = data_aug_data['aug_names']
+            self.aug_genres = data_aug_data['aug_genres']
+            self.aug_train_indices = [num + len(feats) for num in self.train_indices]
+            self.test = self.train_indices
+            self.train_indices = self.train_indices + self.aug_train_indices
+
+            self.feats = self.feats+self.aug_feats
+            self.annots = np.concatenate((self.annots, self.aug_annots))
+
+            self.targs = np.concatenate((self.targs, self.aug_targs))
+            self.names = self.names + self.aug_names
+            self.genres = self.aug_genres + self.aug_genres
 ##############
         #self.test_names = [self.names[index] for index in self.test_indices]
         #self.train_names = [self.names[index] for index in self.train_indices]
 ###########
         ##oversampling
         smogn = False
+        naive = False
         if self.oversampling == True:
 
             #####smogn approach#### 3.86 trancsendence ohne smogn
@@ -247,7 +374,10 @@ class RandomPartitioner:
 
 
             ### naive approach
-            else:
+
+            elif self.oversampling_method == 'naive':
+                print(f'Oversampling by {self.oversampling_method}')
+
                 meanvals = [13.282972972972974, 9.536189189189187, 13.177081081081083, 9.475270270270272, 15.062567567567566, 19.696594594594593, 12.22191891891892, 8.125810810810812, 3.2404324324324327]
                 candidate = []
                 for i in range(len(self.annots)): #each list in list 
@@ -270,11 +400,209 @@ class RandomPartitioner:
                 if mode == "train" :
                     print(f"Oversampling {len(matching_indices)} samples! (When training, does not affect testing), score tolerance: {self.tolerance}")
                 self.train_indices.extend(matching_indices)
+            elif self.oversampling_method == 'adaptive_density_oversampling':
+                print(f'Oversampling by {self.oversampling_method}')
+                print(f'Oversampling! Treshold is set to {tolerance} and ratio to {os_ratio}')
+                train_annots = annots[self.train_indices]
+                gdw = GetKDE()
+                dense = gdw.fit(train_annots)
 
-            
-            
+
+                threshold = dense<tolerance #bool
+
+                print((dense>0.5).sum())
+                print((dense<0.5).sum())
+                new_len = math.floor(((dense>0.5).sum() - threshold.sum())/os_ratio)
+                
+                                
+                
+                w = (1-dense)[threshold] ##
+
+                from itertools import compress
+                dense_thresh_indices = list(compress(self.train_indices, threshold)) 
+                                #np.array(self.train_indices)[threshold]
+
+                import random
+                oversampled = []
+                candidates = []
+                counter = 0
+                while len(dense_thresh_indices)>0:
+                    
+                    if counter > new_len:
+                        break
+
+                    random_chosen = random.choices(dense_thresh_indices,weights = w)
+                    
+                    choice = random_chosen[0] #np.where(train_annots == random_chosen)[0][0]
+                    candidates.append(choice)
+                    self.train_indices = self.train_indices + candidates
+                    oversampled.append(choice)
+                    candidates = []
+                    train_annots_new = annots[self.train_indices]
+                    gdw_new = GetKDE()
+                    dense = gdw_new.fit(train_annots_new)
+                    #look into this, why does it only resample 330 at the end in tenderness
+                    threshold = dense<tolerance
+                    w = (1-dense)[threshold]
+                    dense_thresh_indices = list(compress(self.train_indices, threshold)) 
+                    counter += 1
+
+            elif self.oversampling_method == 'adaptive_density_oversampling_V2':
+                print(f'Oversampling by {self.oversampling_method}')
+                print(f'Oversampling! Treshold is set to {tolerance} and ratio to {os_ratio}')
+                train_annots = annots[self.train_indices]
+                gdw = GetKDE()
+                dense = gdw.fit(train_annots)
 
 
+                threshold = dense<tolerance #bool
+
+                print((dense>0.5).sum())
+                print((dense<0.5).sum())
+                new_len = math.floor(((dense>0.5).sum() - threshold.sum())/os_ratio)
+                
+                                
+                print(dense[161])
+                w = (1-dense)[threshold] ##
+
+                from itertools import compress
+                dense_thresh_indices = list(compress(self.train_indices, threshold)) 
+                                #np.array(self.train_indices)[threshold]
+
+                import random
+                oversampled = []
+                candidates = []
+                counter = 0
+                #TODO add seed
+                while len(dense_thresh_indices)>0:
+                    
+                    if counter > new_len:
+                        break
+
+                    random_chosen = random.choices(dense_thresh_indices,weights = w)
+                    #choose from under 0.5, if already chosen, keep if under 0.2 else new choice
+                    choice = random_chosen[0] #np.where(train_annots == random_chosen)[0][0]
+                    chosen = False
+                    counter = 0
+
+                    while chosen == False:
+                        counter += 1
+                        # print(np.isin(choice, oversampled))
+                        if np.isin(choice, oversampled):
+                            
+                            # print((1-w[dense_thresh_indices.index(choice)]))
+                            
+                            if (1-w[dense_thresh_indices.index(choice)]) < 0.15:
+                                candidates.append(choice)
+                                # print(f'{choice} chosen')
+                                chosen = True
+                            else:
+                                # print(f'{choice } not chosen')
+                                random_chosen = random.choices(dense_thresh_indices,weights = w)
+                                choice = random_chosen[0]
+                                if not np.isin(choice, self.train_indices):
+                                    chosen = True
+                        if counter == 30:
+                            print('No samples left under density of 0.15')
+                            break
+                        else:
+                            candidates.append(choice)
+                            # print(f'{choice} chosen')
+                            chosen = True
+
+
+
+
+                    self.train_indices = self.train_indices + candidates
+                    oversampled.append(choice)
+                    candidates = []
+                    train_annots_new = annots[self.train_indices]
+                    gdw_new = GetKDE()
+                    dense = gdw_new.fit(train_annots_new)
+                    #look into this, why does it only resample 330 at the end in tenderness
+                    threshold = dense<tolerance
+                    w = (1-dense)[threshold]
+
+
+                    dense_thresh_indices = list(compress(self.train_indices, threshold)) 
+
+
+            elif self.oversampling_method == 'last_adaptive_density_oversampling':
+                print(f'Oversampling by {self.oversampling_method}')
+                print(f'Oversampling! Treshold is set to {tolerance} and ratio to {os_ratio}')
+                train_annots = annots[self.train_indices]
+                gdw = GetKDE()
+                dense = gdw.fit(train_annots)
+
+
+                threshold = dense<tolerance #bool
+
+                print((dense>0.5).sum())
+                print((dense<0.5).sum())
+                new_len = math.floor(((dense>0.5).sum() - threshold.sum())/os_ratio)
+                
+                                
+                
+                w = (dense)[threshold] ##
+
+                from itertools import compress
+                dense_thresh_indices = list(compress(self.train_indices, threshold)) 
+                                #np.array(self.train_indices)[threshold]
+
+                import random
+                oversampled = []
+                candidates = []
+                counter = 0
+                while len(dense_thresh_indices)>0:
+                    
+                    if counter > new_len:
+                        break
+                    
+                    choice = dense_thresh_indices[np.argmin(w)]
+                    candidates.append(choice)
+                    self.train_indices = self.train_indices + candidates
+                    oversampled.append(choice)
+                    candidates = []
+                    train_annots_new = annots[self.train_indices]
+                    gdw_new = GetKDE()
+                    dense = gdw_new.fit(train_annots_new)
+                    #look into this, why does it only resample 330 at the end in tenderness
+                    threshold = dense<tolerance
+                    w = (dense)[threshold]
+                    dense_thresh_indices = list(compress(self.train_indices, threshold)) 
+                    counter += 1
+            elif self.oversampling_method == 'density_oversampling':
+                #this will only work with one label
+                #y = np.array(self.annots)
+                print(f'Oversampling by {self.oversampling_method}')
+                print(f'Oversampling! Treshold is set to {tolerance} and ratio to {os_ratio}')
+                train_annots = annots[self.train_indices]
+                gdw = GetKDE()
+                dense = gdw.fit(train_annots)
+                threshold = dense<tolerance #th
+                print((dense>0.5).sum())
+                print((dense<0.5).sum())
+                new_len = math.floor(((dense>0.5).sum() - threshold.sum())/os_ratio)
+                import random
+                
+                candidates = []
+                w = (1-dense)[threshold]
+                #train_annots_thresh = train_annots[threshold]
+
+                from itertools import compress
+                dense_thresh_indices = list(compress(self.train_indices, threshold)) 
+                #np.array(self.train_indices)[threshold]
+                for i in range(new_len):
+                    random_chosen = random.choices(dense_thresh_indices,weights = w)
+                    #arange(a.size)
+                    choice = random_chosen[0] #np.where(train_annots == random_chosen)[0][0]
+                    candidates.append(choice)
+                self.train_indices = self.train_indices + candidates
+    
+
+
+
+        
 #################
 
         test_list = []
@@ -285,7 +613,10 @@ class RandomPartitioner:
         #assert test_list == indices
 
     def get_split(self, split_name):
+        
         if split_name == 'train':
+            # print(self.train_indices)
+            # print([self.names[idx] for idx in self.train_indices])
             indices = self.train_indices
         elif split_name == 'valid':
             indices = self.valid_indices
@@ -299,6 +630,7 @@ class RandomPartitioner:
                 [self.targs[idx] for idx in indices],
                 [self.names[idx] for idx in indices],
                 [self.genres[idx] for idx in indices])
+
 
 
 def load_data(
@@ -317,7 +649,10 @@ def load_data(
         scale = None,
         mode = 'train',
         oversampling = False,
-        tolerance = 20
+        oversampling_method = None,
+        tolerance = 20,
+        os_ratio = 1,
+        data_augmentation = False
     
         
 ):
@@ -328,10 +663,22 @@ def load_data(
     else:
         print(f'Loading Data!')
     entries = match_files(train_y = train_y)
+    if data_augmentation in [1,2,4]:
+        aug_entries = match_files_augmentation(train_y = train_y, data_augmentation = data_augmentation)
+        #use aug_entries seperatly and create train test sets
+        #get indices of train and get the augmented data of it
+
+
     if transform != None:
         print(f'Transformation is set to {transform}!')
     if use_audio_in:
         feats = [entry.get_audio() for entry in entries]
+        if data_augmentation in [1,2,4]:
+            aug_feats = [entry.get_audio() for entry in aug_entries]####
+            aug_annots = [entry.get_gems_9() for entry in aug_entries]
+            aug_targs = aug_annots
+            aug_names = [entry.get_name() for entry in aug_entries]
+            aug_genres = [entry.get_genre() for entry in aug_entries]
     else:
         feats = [entry.get_audio() for entry in entries]  # TODO calculate spectrogram here.
         raise NotImplemented()
@@ -391,31 +738,45 @@ def load_data(
 
     for i in train_y:
         label_idx.append(gems_label_pos.index(i))
-    targs = np.take(targs, label_idx, axis = 1)
+    old_targs = targs
+    targs = np.take(targs, label_idx, axis = 1) #this worked
     annots = targs
-    
 
-    partitioner = RandomPartitioner(feats, annots, targs, names, genres, 42, train_y, mode = mode, tolerance = tolerance, oversampling = oversampling)
+    if data_augmentation in [1,2,4]:
+        aug_data = {
+            'aug_feats':aug_feats, 
+            'aug_annots': aug_annots, 
+            'aug_targs' : aug_targs, 
+            'aug_names' : aug_names, 
+            'aug_genres': aug_genres
+        }
+        data_aug_bool = True
+    else:
+        aug_data = {}
+        data_aug_bool = False
+    partitioner = RandomPartitioner(feats, annots, targs, names, genres, 42, train_y, mode = mode, tolerance = tolerance, oversampling = oversampling, os_ratio = os_ratio, oversampling_method = oversampling_method,
+                                    data_augmentation = data_aug_bool, data_aug_data = aug_data )
+    
+    # if data_augmentation in [1,2,4]:
+    #     aug_partitioner = RandomPartitioner(aug_feats, aug_annots, aug_targs, aug_names, aug_genres, 42, train_y, mode = mode, tolerance = tolerance, oversampling = oversampling, os_ratio = os_ratio, oversampling_method = oversampling_method)
 
     valid_subset = None
     if val_size is not None and 0.0 < val_size < 1.0:
         valid_subset = val_size
     pin_memory = gpu_num > -1
+
+
     train_feats, train_annots, train_targs, train_names, train_genres = partitioner.get_split('train')
-    
-    # import resreg
-    # resampling = False
-    # if resampling:
-    #     #TODO implement here
-    #     relevance = resreg.sigmoid_relevance(annots, cl=None, ch=np.percentile(annots, 90))
-
-    #     X_train_res, y_train_res = resreg.random_oversample(train_feats, train_annots, relevance,
-    #                                                   relevance_threshold=0.5,
-    #                                                   over='balance')
-    #     #continue
-
+    # if data_augmentation in [1,2,4]:
+    #     aug_train_feats, aug_train_annots, aug_train_targs, aug_train_names, aug_train_genres = aug_partitioner.get_split('train')
+    #     train_feats = train_feats + aug_train_feats
+    #     train_annots = train_annots + aug_train_annots
+    #     train_targs = train_targs + aug_train_targs
+    #     train_names = train_names + aug_train_names
+    #     train_genres = train_genres + aug_train_genres
 
     frames_to_samples = FramesToSamples(hop_size=feat_settings.hop_size, window_size=feat_settings.frame_size)
+
     train_set = SnippetDataset(train_feats, train_targs,
                                seq_len,
                                hop_size,
@@ -454,6 +815,8 @@ def load_data(
         pin_memory=pin_memory,
     )
     test_feats, test_annots, test_targs, test_names, test_genres = partitioner.get_split('test')
+
+
     test_loader = DataLoader(
         ListDataset(test_feats, test_targs, test_annots, test_names, test_genres),
         batch_size=1,
@@ -477,9 +840,9 @@ def load_data(
         if value in valid_names:
             matching_indices.append(index)
     assert len(matching_indices) == 0
+    loss_annots = np.array(train_annots)
 
-
-    return test_loader, train_loader, valid_loader, annots
+    return test_loader, train_loader, valid_loader, loss_annots, annots #
 
 
 def generate_plots():
@@ -530,6 +893,7 @@ def plot_data(gems_df, set_title='xx'):
     plt.tight_layout()
     plt.savefig(os.path.join(fig_path, set_title.lower().replace(' ', '_') + '_genre_gems9_dist.png'))
     # plt.show()
+
 
 
 if __name__ == '__main__':

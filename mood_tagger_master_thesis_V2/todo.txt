@@ -79,3 +79,6 @@ resampling TODO
 https://github.com/jafetgado/resreg
 
 https://arxiv.org/pdf/2102.09554.pdf#cite.branco2017smogn
+
+MEETING Nov
+Kann man aus niedrigere LR heraussehen welcher model bsser ist?

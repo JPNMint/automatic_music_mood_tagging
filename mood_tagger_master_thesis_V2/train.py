@@ -9,6 +9,7 @@ import hydra
 from hydra.core.hydra_config import HydraConfig
 import numpy as np
 import torch
+import torch.nn.functional as F
 from catalyst import dl, utils
 from omegaconf import DictConfig, OmegaConf
 from torch import nn, optim
@@ -18,6 +19,7 @@ from catalyst.engines.torch import GPUEngine
 
 from denseweight import DenseWeight
 
+from custom_loss_func import dense_weight_loss_single, dense_weight_loss, dense_weight_loss_tuned, RMSELoss, dense_weight_loss_tuned_RMSE ,dense_weight_loss_RMSE
 from __init__  import get_architecture, test_model
 from data import load_data, FeatureSetup #, NUM_CLASSES
 #export PYTHONPATH="$PWD/"
@@ -93,8 +95,10 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
 
     oversampling = cfg.datasets.oversampling
     tolerance = cfg.datasets.oversampling_tolerance
+    os_ratio = cfg.datasets.oversampling_ratio
     loss_func = cfg.datasets.loss_func
-
+    oversampling_method = cfg.datasets.oversampling_method
+    data_augmentation = cfg.datasets.data_augmentation
 
     hydra_base_dir = HydraConfig.get().runtime.output_dir
     catalyst_out_dir = os.path.join(hydra_base_dir, 'catalyst')
@@ -126,8 +130,9 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
     snippet_hop_s = fft_hop_size * (hop_size ) / feat_sample_rate
 
 
-    model = architecture(audio_input=use_audio_in, num_classes=num_classes, debug=True, **cfg.features)
-
+    #model = architecture(audio_input=use_audio_in, num_classes=num_classes, debug=True, **cfg.features)
+    model = architecture(audio_input=use_audio_in, num_classes=num_classes, data_augmentation = data_augmentation, mode = 'train',**cfg.features)
+    model.cuda()
     if use_audio_in:
         in_size = (batch_size, int((seq_len - 1) * (feat_sample_rate / feat_frame_rate) + feat_window_size))
     else:
@@ -135,11 +140,12 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
     output = model.forward(torch.Tensor(np.zeros(in_size)))
     print(output.shape)
 
-
-    model = architecture(audio_input=use_audio_in, num_classes=num_classes, **cfg.features)
+    #model = architecture(audio_input=use_audio_in, num_classes=num_classes, data_augmentation = data_augmentation, mode = 'train',**cfg.features)
+    #model = architecture(audio_input=use_audio_in, num_classes=num_classes, data_augmentation = data_augmentation, mode = 'train',**cfg.features)
 
     ##########Finetuning pretrained model
     if cfg.model.architecture == 'musicnn_arch_finetune':
+        print(f"Loading Model: {musicnn_arch_finetune}")
         run_path_pretrained = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/architectures/SotA' #musicnn mse loss
         # hydra_run_path = os.path.join(run_path_pretrained, '.hydra')
         # config_path = os.path.join(hydra_run_path, 'config.yaml')
@@ -151,8 +157,7 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
         pretrained_dict = torch.load('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/architectures/SotA/musicnn_sota.pth')
         del pretrained_dict['dense2.weight']
         del pretrained_dict['dense2.bias']
-        #for param in pretrained_model.parameters():
-           # param.requires_grad = False
+
         
         for name, param in pretrained_model.named_parameters():
             print(name)
@@ -185,8 +190,9 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
     feat_settings = FeatureSetup(
         "mood_feat", feat_sample_rate, 1, feat_frame_rate, feat_window_size, cfg.features.freq_bins, 30, False, "log", "log_1"
     )
+
     ######loading data
-    test_loader, train_loader, valid_loader, targets_all = load_data(batch_size,
+    test_loader, train_loader, valid_loader, train_annot, targets_all = load_data(batch_size,
                                                         feat_settings,
                                                         gpu_num,
                                                         hop_size,
@@ -200,11 +206,32 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
                                                         scale = scale,
                                                         mode = "train",
                                                         oversampling = oversampling,
+                                                        oversampling_method = oversampling_method,
                                                         tolerance = tolerance,
-                                                        train_y = GEMS_9) 
+                                                        os_ratio = os_ratio,
+                                                        train_y = GEMS_9,
+                                                        data_augmentation = data_augmentation) 
+    
+
+
+    
+
+
     if loss_func == 'dense_weight':
         print(f'Custom Loss function {loss_func}!')
-        criterion = dense_weight_loss(cfg.datasets.dense_weight_alpha, targets_all = targets_all)
+        #TODO SEE HERE IF CORRECT
+        if oversampling == True:
+            criterion = dense_weight_loss(cfg.datasets.dense_weight_alpha, targets_all = train_annot)
+        else:
+            criterion = dense_weight_loss(cfg.datasets.dense_weight_alpha, targets_all = targets_all)
+            dense_weight_loss_tuned
+    if loss_func == 'dense_weight_tuned':
+        print(f'Custom Loss function {loss_func}!')
+        criterion = dense_weight_loss_tuned(alpha = None, targets_all = train_annot)
+
+    elif loss_func == 'dense_weight_single':
+        print(f'Custom Loss function {loss_func}!')
+        criterion = dense_weight_loss_single(cfg.datasets.dense_weight_alpha, targets_all = targets_all)
 
     elif loss_func == 'MAE':
         
@@ -214,14 +241,26 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
         
         criterion = nn.MSELoss() #nn.MSELoss() #torch.nn.SmoothL1Loss()   nn.CrossEntropyLoss()
         print("MSE Loss Function!")
+
+    elif loss_func == 'RMSE':
+        
+        criterion = RMSELoss() #nn.MSELoss() #torch.nn.SmoothL1Loss()   nn.CrossEntropyLoss()
+        print("RMSE Loss Function!")
+    
+    elif loss_func == 'dense_weight_RMSE':
+        print(f'Custom Loss function {loss_func}!')
+        criterion = dense_weight_loss_RMSE(alpha = None, targets_all = train_annot)
+
+    elif loss_func == 'dense_weight_tuned_RMSE':
+        print(f'Custom Loss function {loss_func}!')
+        criterion = dense_weight_loss_tuned_RMSE(alpha = None, targets_all = train_annot)
     else:
         
         criterion = nn.L1Loss() #nn.MSELoss() #torch.nn.SmoothL1Loss()   nn.CrossEntropyLoss()
         print("No Loss Function set, use default!")
         loss_func = 'MAE'
 
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay  = 1e-7)# weight_decay  = 1e-9
     from catalyst.utils.torch import get_available_engine
 
     # engine = get_available_engine()
@@ -271,52 +310,72 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
     else:
         alpha = cfg.datasets.dense_weight_alpha
 
-    csv_information = {
+    csv_information = { 
                 'Model' : cfg.model.architecture,
                 #'resampling' : cfg.resampling,
                 'Labels' : [cfg.datasets.labels],
                 'lr' : cfg.training.learning_rate,
-                'loss_function' : loss_func,
+                'loss_function' : cfg.datasets.loss_func,
                 'dense_weight_alpha': alpha ,
                 'batch size' : cfg.training.batch_size,
-                'snippet_duration_s' : snippet_duration_s
+                'snippet_duration_s' : snippet_duration_s,
+                'oversampling': cfg.datasets.oversampling,
+                'oversampling_tolerance': cfg.datasets.oversampling_tolerance,
+                'oversampling_ratio' : cfg.datasets.oversampling_ratio,
+                'oversampling_method': cfg.datasets.oversampling_method,
+                'data_augmentation': data_augmentation
 
 
             }
     test_model(model, num_classes, test_loader, engine.device, transform = cfg.training.transformation, training = 'training', scale = scale, model_name = cfg.model.architecture, csv_information = csv_information )
 
 
-class dense_weight_loss(nn.Module):
-    # cite https://github.com/SteiMi/denseweight 
-    # use of package denseweight to calculate weights
-    def __init__(self ,alpha, targets_all):
-        super(dense_weight_loss, self).__init__()
-        #put it before as input? as in fit it not in the class?
-        self.dw = DenseWeight(alpha=alpha)
-        self.dw.fit(targets_all)
-    def forward(self, predictions, targets):
-        try:
 
-            targs = targets.cpu().detach().numpy()
-            weighted_targs = self.dw(targs)
-            relevance = torch.from_numpy(weighted_targs).to(torch.device("cuda:0"))
-        except ValueError:
-            print(
-                        'WARNING!)'
-                    )
-            relevance = torch.ones_like(targets)
+def bmc_loss(pred, target, noise_var):
+    """Compute the Balanced MSE Loss (BMC) between `pred` and the ground truth `targets`.
+    Args:
+      pred: A float tensor of size [batch, 1].
+      target: A float tensor of size [batch, 1].
+      noise_var: A float number or tensor.
+    Returns:
+      loss: A float tensor. Balanced MSE Loss.
+    """
+    # cite https://github.com/jiawei-ren/BalancedMSE/blob/main/tutorial/balanced_mse.ipynb
 
-        err = torch.pow(predictions - targets, 2)
-        err_weighted = relevance * err
-        mse = err_weighted.mean()
+    logits = - (pred - target.T).pow(2) / (2 * noise_var)   # logit size: [batch, batch]
+    loss = F.cross_entropy(logits, torch.arange(pred.shape[0]))     # contrastive-like loss
+    loss = loss * (2 * noise_var) # optional: restore the loss scale, 'detach' when noise is learnable 
 
-        return mse
+    return loss
+class BMCLoss(nn.Module):
+    def __init__(self, init_noise_sigma):
+        super(BMCLoss, self).__init__()
+        self.noise_sigma = torch.nn.Parameter(torch.tensor(init_noise_sigma))
+        print(self.noise_sigma)
+
+    def forward(self, pred, target):
+        noise_var = self.noise_sigma ** 2
+        target = target.cpu().detach()
+        pred = pred.cpu().detach()
+        return bmc_loss(pred, target, noise_var)
 
 
+
+def bmc_loss_md(pred, target, noise_var):
+    """Compute the Multidimensional Balanced MSE Loss (BMC) between `pred` and the ground truth `targets`.
+    Args:
+      pred: A float tensor of size [batch, d].
+      target: A float tensor of size [batch, d].
+      noise_var: A float number or tensor.
+    Returns:
+      loss: A float tensor. Balanced MSE Loss.
+    """
+    I = torch.eye(pred.shape[-1])
+    logits = MVN(pred.unsqueeze(1), noise_var*I).log_prob(target.unsqueeze(0))  # logit size: [batch, batch]
+    loss = F.cross_entropy(logits, torch.arange(pred.shape[0]))     # contrastive-like loss
+    loss = loss * (2 * noise_var).detach()  # optional: restore the loss scale, 'detach' when noise is learnable 
     
-
-
-
+    return loss
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="default")

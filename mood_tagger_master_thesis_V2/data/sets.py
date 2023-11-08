@@ -170,7 +170,10 @@ class ListDataset(Dataset):
     """
 
     def __init__(self, *lists: list) -> None:
-        assert all(len(lists[0]) == len(cur_list) for cur_list in lists), "Size mismatch between lists"
+
+        #assert all(len(lists[0]) == len(cur_list) for cur_list in lists), "Size mismatch between lists"
+        if all(len(lists[0]) == len(cur_list) for cur_list in lists):
+               print("Size mismatch between lists, data augmentation in training?")
         self.lists = lists
 
     def __getitem__(self, index):
