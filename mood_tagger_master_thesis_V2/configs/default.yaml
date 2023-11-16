@@ -1,6 +1,6 @@
 datasets:
   data_augmentation: 0
-  dense_weight_alpha: 1.5
+  dense_weight_alpha: 4
   labels:
   - Wonder
   - Transcendence
@@ -11,7 +11,7 @@ datasets:
   - Power
   - Tension
   - Sadness
-  loss_func: RMSE
+  loss_func: dense_weight
   names:
   - emma_gems9
   oversampling: false
@@ -28,7 +28,7 @@ model:
   architecture: FCN_6_layer
   audio_inputs: true
 training:
-  batch_size: 50
+  batch_size: 10
   k_samples: 1e5
   learning_rate: 1e-2
   max_num_epochs: 999999

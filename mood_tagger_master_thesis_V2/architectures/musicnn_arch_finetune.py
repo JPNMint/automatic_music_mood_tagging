@@ -91,7 +91,7 @@ class Net(torch.nn.Module):
         if self.debug:
             print(x_input.shape)
         if self.audio_input:
-            specto = self.spec(x_input)
+            specto = self.spec(x_input.cuda())
         else:
             specto = x_input
         if self.debug:

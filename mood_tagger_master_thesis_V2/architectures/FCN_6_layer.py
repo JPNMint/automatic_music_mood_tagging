@@ -85,7 +85,7 @@ class Net(torch.nn.Module):
             torch.nn.Dropout2d(self.dropout_p),
 
             
-            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=self.num_classes, kernel_size=(3, 3), padding="same"),
+            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=self.num_classes, kernel_size=(1, 1), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(self.num_classes),
             torch.nn.AdaptiveAvgPool2d(output_size=(1, 1)),

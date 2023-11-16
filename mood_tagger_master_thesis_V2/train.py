@@ -19,7 +19,7 @@ from catalyst.engines.torch import GPUEngine
 
 from denseweight import DenseWeight
 
-from custom_loss_func import dense_weight_loss_single, dense_weight_loss, dense_weight_loss_tuned, RMSELoss, dense_weight_loss_tuned_RMSE ,dense_weight_loss_RMSE
+from custom_loss_func import dense_weight_loss_single, dense_weight_loss, dense_weight_loss_tuned, RMSELoss, dense_weight_loss_tuned_RMSE ,dense_weight_loss_RMSE,RMSLELoss
 from __init__  import get_architecture, test_model
 from data import load_data, FeatureSetup #, NUM_CLASSES
 #export PYTHONPATH="$PWD/"
@@ -145,7 +145,7 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
 
     ##########Finetuning pretrained model
     if cfg.model.architecture == 'musicnn_arch_finetune':
-        print(f"Loading Model: {musicnn_arch_finetune}")
+        print(f"Loading Model: 'musicnn_arch_finetune'")
         run_path_pretrained = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/architectures/SotA' #musicnn mse loss
         # hydra_run_path = os.path.join(run_path_pretrained, '.hydra')
         # config_path = os.path.join(hydra_run_path, 'config.yaml')
@@ -254,6 +254,10 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
     elif loss_func == 'dense_weight_tuned_RMSE':
         print(f'Custom Loss function {loss_func}!')
         criterion = dense_weight_loss_tuned_RMSE(alpha = None, targets_all = train_annot)
+    elif loss_func == 'RMSLE':
+        print(f'Custom Loss function {loss_func}!')
+        criterion = RMSLELoss()
+    
     else:
         
         criterion = nn.L1Loss() #nn.MSELoss() #torch.nn.SmoothL1Loss()   nn.CrossEntropyLoss()
@@ -315,6 +319,7 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
                 #'resampling' : cfg.resampling,
                 'Labels' : [cfg.datasets.labels],
                 'lr' : cfg.training.learning_rate,
+
                 'loss_function' : cfg.datasets.loss_func,
                 'dense_weight_alpha': alpha ,
                 'batch size' : cfg.training.batch_size,

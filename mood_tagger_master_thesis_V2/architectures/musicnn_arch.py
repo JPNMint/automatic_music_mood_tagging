@@ -76,7 +76,14 @@ class Net(torch.nn.Module):
         self.bn = torch.nn.BatchNorm1d(dense_channel)
         self.relu = torch.nn.ReLU()
         self.dropout = torch.nn.Dropout(0.5)
-        #self.dense2 = torch.nn.Linear(dense_channel, num_classes)
+        self.postprocess = torch.nn.Sequential(
+                            torch.nn.Linear(200,100),
+                            torch.nn.Dropout(p = 0.5),
+                            torch.nn.Linear(100,50),
+                            torch.nn.Dropout(p = 0.5),
+                            torch.nn.Linear(50,25),
+                            torch.nn.Linear(25,num_classes)                       
+                                )
 
 
     def forward(self, x_input: torch.Tensor) -> torch.Tensor:
@@ -84,7 +91,7 @@ class Net(torch.nn.Module):
         if self.debug:
             print(x_input.shape)
         if self.audio_input:
-            specto = self.spec(x_input)
+            specto = self.spec(x_input.cuda())
         else:
             specto = x_input
         if self.debug:
@@ -126,9 +133,11 @@ class Net(torch.nn.Module):
         out = self.dropout(out)
         print(out.shape)
         #out = torch.nn.Sigmoid()(out)
-
-        scores = out
-        return scores #scores.view(-1, self.num_classes)
+        x = out
+        for cur_layer in self.postprocess:
+            x = cur_layer(x)
+        
+        return x #scores.view(-1, self.num_classes)
 
     def is_sequential(self):
         return self._sequential

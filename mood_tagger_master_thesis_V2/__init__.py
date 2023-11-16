@@ -120,7 +120,7 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
         prediction_genres.append(test_genre[0])
         actual.append(test_targ.cpu().numpy()[0])
 
-
+    from sklearn.metrics import r2_score
     
    # testing = loaded_scaler.inverse_transform(predictions) 
     if scale is not None: 
@@ -151,6 +151,8 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
     rmse_df = np.sqrt(mse_df)
     max_df = error_df.max()
     min_df = error_df.min()
+
+    r2 = r2_score(np.array(actual), np.array(predictions))
     print(mse_df)
     index_list = ['mean error', 'm abs error', 'mse', 'rmse', 'maximums', 'minimums']
 
@@ -163,7 +165,8 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
                 'MSE' : mse_df.values,
                 'RMSE' : rmse_df.values,
                 'Min' : min_df.values,
-                "Max" : max_df.values
+                "Max" : max_df.values,
+                "R2" : r2
             }
     df = pd.DataFrame(data)
 
@@ -173,7 +176,9 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
 
 
 
-    print(df) 
+    # print(df) 
+    # print('R2!')
+    # print(r2_score(np.array(actual), np.array(predictions)))
     df['model'] = model_name
 
 
@@ -184,7 +189,8 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
                 'ME' : [np.mean(mean_errors_df)],
                 'MAE' :  [np.mean(mean_abs_errors_df)],
                 'MSE' : [np.mean(mse_df)],
-                'RMSE' : [np.mean(rmse_df)]
+                'RMSE' : [np.mean(rmse_df)],
+                "R2" : r2
             }
     #metrics for detailed
     MAE = ['Wonder MAE', 'Transcendence MAE', 'Nostalgia MAE', 'Tenderness MAE', 'Peacfulness MAE', 'Joy MAE', 'Power MAE', 'Tension MAE', 'Sadness MAE']
@@ -236,8 +242,8 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
     cur_batch = csv_information['batch size']
     cur_os = csv_information['oversampling']
     if not csv_information['data_augmentation']:
-        cur_da = '[]'
-        csv_information['data_augmentation']  = '[]'
+        cur_da = 0
+        csv_information['data_augmentation']  = 0
     else:
         cur_da = csv_information['data_augmentation']
         
@@ -291,7 +297,6 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
             (csv_file['data_augmentation'] == cur_da )
             
             )
-
 
 
 

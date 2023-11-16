@@ -54,8 +54,21 @@ class Net(torch.nn.Module):
             torch.nn.Conv2d(in_channels=channel_base, out_channels=channel_base*2, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(channel_base*2),
-            torch.nn.MaxPool2d((2, 4)),
+            torch.nn.MaxPool2d((2, 2)),
             torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
 
             torch.nn.Conv2d(in_channels=channel_base*2, out_channels=1*channel_base, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
@@ -64,11 +77,12 @@ class Net(torch.nn.Module):
             torch.nn.Dropout2d(self.dropout_p),
 
             
-            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(3, 3), padding="same"),
+            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(1, 1), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(1),
             torch.nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             torch.nn.ReLU(),
+
 
 
         )
@@ -82,8 +96,21 @@ class Net(torch.nn.Module):
             torch.nn.Conv2d(in_channels=channel_base, out_channels=channel_base*2, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(channel_base*2),
-            torch.nn.MaxPool2d((2, 4)),
+            torch.nn.MaxPool2d((2, 2)),
             torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
 
             torch.nn.Conv2d(in_channels=channel_base*2, out_channels=1*channel_base, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
@@ -92,7 +119,7 @@ class Net(torch.nn.Module):
             torch.nn.Dropout2d(self.dropout_p),
 
             
-            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(3, 3), padding="same"),
+            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(1, 1), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(1),
             torch.nn.AdaptiveAvgPool2d(output_size=(1, 1)),
@@ -111,8 +138,21 @@ class Net(torch.nn.Module):
             torch.nn.Conv2d(in_channels=channel_base, out_channels=channel_base*2, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(channel_base*2),
-            torch.nn.MaxPool2d((2, 4)),
+            torch.nn.MaxPool2d((2, 2)),
             torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
 
             torch.nn.Conv2d(in_channels=channel_base*2, out_channels=1*channel_base, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
@@ -121,7 +161,7 @@ class Net(torch.nn.Module):
             torch.nn.Dropout2d(self.dropout_p),
 
             
-            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(3, 3), padding="same"),
+            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(1, 1), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(1),
             torch.nn.AdaptiveAvgPool2d(output_size=(1, 1)),
@@ -140,8 +180,21 @@ class Net(torch.nn.Module):
             torch.nn.Conv2d(in_channels=channel_base, out_channels=channel_base*2, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(channel_base*2),
-            torch.nn.MaxPool2d((2, 4)),
+            torch.nn.MaxPool2d((2, 2)),
             torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
 
             torch.nn.Conv2d(in_channels=channel_base*2, out_channels=1*channel_base, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
@@ -150,7 +203,7 @@ class Net(torch.nn.Module):
             torch.nn.Dropout2d(self.dropout_p),
 
             
-            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(3, 3), padding="same"),
+            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(1, 1), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(1),
             torch.nn.AdaptiveAvgPool2d(output_size=(1, 1)),
@@ -168,8 +221,21 @@ class Net(torch.nn.Module):
             torch.nn.Conv2d(in_channels=channel_base, out_channels=channel_base*2, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(channel_base*2),
-            torch.nn.MaxPool2d((2, 4)),
+            torch.nn.MaxPool2d((2, 2)),
             torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
 
             torch.nn.Conv2d(in_channels=channel_base*2, out_channels=1*channel_base, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
@@ -178,7 +244,7 @@ class Net(torch.nn.Module):
             torch.nn.Dropout2d(self.dropout_p),
 
             
-            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(3, 3), padding="same"),
+            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(1, 1), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(1),
             torch.nn.AdaptiveAvgPool2d(output_size=(1, 1)),
@@ -198,8 +264,21 @@ class Net(torch.nn.Module):
             torch.nn.Conv2d(in_channels=channel_base, out_channels=channel_base*2, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(channel_base*2),
-            torch.nn.MaxPool2d((2, 4)),
+            torch.nn.MaxPool2d((2, 2)),
             torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
 
             torch.nn.Conv2d(in_channels=channel_base*2, out_channels=1*channel_base, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
@@ -208,11 +287,12 @@ class Net(torch.nn.Module):
             torch.nn.Dropout2d(self.dropout_p),
 
             
-            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(3, 3), padding="same"),
+            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(1, 1), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(1),
             torch.nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             torch.nn.ReLU(),
+
 
 
         )
@@ -225,8 +305,21 @@ class Net(torch.nn.Module):
             torch.nn.Conv2d(in_channels=channel_base, out_channels=channel_base*2, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(channel_base*2),
-            torch.nn.MaxPool2d((2, 4)),
+            torch.nn.MaxPool2d((2, 2)),
             torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
 
             torch.nn.Conv2d(in_channels=channel_base*2, out_channels=1*channel_base, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
@@ -235,11 +328,12 @@ class Net(torch.nn.Module):
             torch.nn.Dropout2d(self.dropout_p),
 
             
-            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(3, 3), padding="same"),
+            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(1, 1), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(1),
             torch.nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             torch.nn.ReLU(),
+
 
 
         )
@@ -252,8 +346,21 @@ class Net(torch.nn.Module):
             torch.nn.Conv2d(in_channels=channel_base, out_channels=channel_base*2, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(channel_base*2),
-            torch.nn.MaxPool2d((2, 4)),
+            torch.nn.MaxPool2d((2, 2)),
             torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
 
             torch.nn.Conv2d(in_channels=channel_base*2, out_channels=1*channel_base, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
@@ -262,11 +369,12 @@ class Net(torch.nn.Module):
             torch.nn.Dropout2d(self.dropout_p),
 
             
-            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(3, 3), padding="same"),
+            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(1, 1), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(1),
             torch.nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             torch.nn.ReLU(),
+
 
 
         )
@@ -279,8 +387,21 @@ class Net(torch.nn.Module):
             torch.nn.Conv2d(in_channels=channel_base, out_channels=channel_base*2, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(channel_base*2),
-            torch.nn.MaxPool2d((2, 4)),
+            torch.nn.MaxPool2d((2, 2)),
             torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
+            torch.nn.Conv2d(in_channels=channel_base*2, out_channels=2*channel_base, kernel_size=(3, 3), padding="same"),
+            torch.nn.ELU(),
+            torch.nn.BatchNorm2d(2 * channel_base),
+            torch.nn.MaxPool2d((2, 2)),
+            torch.nn.Dropout2d(self.dropout_p),
+
 
             torch.nn.Conv2d(in_channels=channel_base*2, out_channels=1*channel_base, kernel_size=(3, 3), padding="same"),
             torch.nn.ELU(),
@@ -289,11 +410,12 @@ class Net(torch.nn.Module):
             torch.nn.Dropout2d(self.dropout_p),
 
             
-            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(3, 3), padding="same"),
+            torch.nn.Conv2d(in_channels=1*channel_base, out_channels=1, kernel_size=(1, 1), padding="same"),
             torch.nn.ELU(),
             torch.nn.BatchNorm2d(1),
             torch.nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             torch.nn.ReLU(),
+
 
 
         )
