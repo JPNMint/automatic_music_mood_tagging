@@ -7,6 +7,9 @@ import pathlib as Path
 import pandas as pd
 from data import remove_special_chars
 from sklearn.metrics import mean_squared_error, r2_score
+import os
+from custom_loss_func import dense_weight_loss_single, dense_weight_loss, dense_weight_loss_tuned, RMSELoss, dense_weight_loss_tuned_RMSE ,dense_weight_loss_RMSE,RMSLELoss
+
 
 class CustomDataset(Dataset):
     def __init__(self, data_folder, transform=None):
@@ -60,7 +63,7 @@ class embeddingsNN(nn.Module):
         out = self.fc4(out)
         return out
 import random as rand    
-def load_data():
+def load_data(gems9 = ['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']):
     embed_path = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/data/audio_embeddings'
     embed_npy = list(Path.Path(embed_path).glob('*.npy'))
     ANNOT_CSV_FILE = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/data/GEMS-INN_2023-01-30_expert.csv'
@@ -81,7 +84,15 @@ def load_data():
     test_annot = []
     train_annot = []
     valid_annot = []
+    all_annot = []
 
+    #how many classes do we have
+    gems_label_pos = ['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']
+    label_idx = []
+
+    for i in gems9:
+        label_idx.append(gems_label_pos.index(i))
+    #get label pos
 
     rand.seed(42)
     num_samples = len(emma_df)
@@ -135,7 +146,7 @@ def load_data():
                 if col_idx in valid_indices:
                     valid = True
                 annot = np.array(col_series[['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']])
-
+                #all_annot.append(annot)
         sample = np.load(f'/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/data/audio_embeddings/{name}.npy', allow_pickle=True)
         nr = sample.shape[1]
         sample = sample.T
@@ -180,7 +191,15 @@ def load_data():
     print(f"Number of train samples: {len(train_annot)}!")
     print(f"Number of test samples: {len(test_annot)}!")
     print(f"Number of valid samples: {len(valid_annot)}!")
-    return train_annot, train_feat, test_annot, test_feat, valid_annot, valid_feat
+    #debuger = train_annot
+    train_annot = np.take(train_annot, label_idx, axis = 1).tolist() #TODO CHECK THIS, if it works
+    test_annot = np.take(test_annot, label_idx, axis = 1).tolist() 
+    valid_annot = np.take(valid_annot, label_idx, axis = 1).tolist() 
+
+    all_annot = train_annot+test_annot+valid_annot
+    # all_annot = col_series[['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']]
+    #all_annot = np.take(all_annot, label_idx, axis = 1).tolist() 
+    return train_annot, train_feat, test_annot, test_feat, valid_annot, valid_feat, all_annot
 
 
 class CustomDataset(Dataset):
@@ -193,118 +212,379 @@ class CustomDataset(Dataset):
     
     def __getitem__(self, index):
         return self.feat[index], self.annots[index]
-train_annot, train_feat, test_annot, test_feat, valid_annot, valid_feat = load_data()
-
-# if artist_name.lower().startswith('the '):
-#             artist_name = artist_name[4:]
-train_dataset = CustomDataset(train_feat, train_annot)
-test_dataset = CustomDataset(test_feat, test_annot)
-valid_dataset = CustomDataset(valid_feat, valid_annot)
-batch_size = 10
-
-train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=True)
-valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=True)
+    
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model_path = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/model/embed_model.pth'
+def run_training_transfer_learning(gems9 = ['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness'], loss_func = 'MAE', dense_weight_alpha = 2):
+    
+    train_annot, train_feat, test_annot, test_feat, valid_annot, valid_feat, targets_all = load_data(gems9)
 
-num_epochs = 9999999
-input_size = train_feat[0].shape[0]  # Replace with your input size
-hidden_size = 64  # Replace with desired hidden layer size
-output_size = 9   # Replace with your output size
+    # if artist_name.lower().startswith('the '):
+    #             artist_name = artist_name[4:]
+    train_dataset = CustomDataset(train_feat, train_annot)
+    test_dataset = CustomDataset(test_feat, test_annot)
+    valid_dataset = CustomDataset(valid_feat, valid_annot)
+    batch_size = 10
 
-model = embeddingsNN(input_size, hidden_size, output_size)
-criterion = nn.L1Loss() #
-optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay  = 1e-7)
-best_val_loss = float('inf')
-min_valid_loss = np.inf
-
-patience = 1000
-
-
-for epoch in range(num_epochs):
-    train_loss = 0.0
-    model.train()  
-    model = model.to(device)
-    # Training
-    for data, labels in train_loader:
-        data, labels = data.to(device), labels.to(device)
-
-        optimizer.zero_grad()
-        output = model(data)
-        loss = criterion(output,labels)
-
-        loss.backward()
-        optimizer.step()
-        train_loss += loss.item()
+    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=True)
+    valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=True)
 
 
-    valid_loss = 0.0
-    model.eval()     # Optional when not using Model Specific layer
-    for data, labels in valid_loader:
-        data, labels = data.to(device), labels.to(device)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model_path = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/model/embed_model.pth'
+
+    num_epochs = 9999999
+    input_size = train_feat[0].shape[0]  # Replace with your input size
+    hidden_size = 64  # Replace with desired hidden layer size
+    output_size = len(gems9)   # Replace with your output size
+    learning_rate = 0.001
+    oversampling = False
+    oversampling_tolerance = 0
+    oversampling_ratio = 0
+    oversampling_method = 'No oversampling'
+    data_augmentation = 0
+
+
+
+    model = embeddingsNN(input_size, hidden_size, output_size)
+    if loss_func == 'dense_weight':
+        print(f'Custom Loss function {loss_func}!')
+        #TODO SEE HERE IF CORRECT
+        if oversampling == True:
+            criterion = dense_weight_loss(dense_weight_alpha, targets_all = train_annot)
+        else:
+            criterion = dense_weight_loss(dense_weight_alpha, targets_all = targets_all)
+            dense_weight_loss_tuned
+    elif loss_func == 'dense_weight_tuned':
+        print(f'Custom Loss function {loss_func}!')
+        criterion = dense_weight_loss_tuned(alpha = None, targets_all = train_annot)
+
+    elif loss_func == 'dense_weight_single':
+        print(f'Custom Loss function {loss_func}!')
+        criterion = dense_weight_loss_single(dense_weight_alpha, targets_all = targets_all)
+
+    elif loss_func == 'MAE':
         
-        output = model(data)
-        loss = criterion(output,labels)
-        valid_loss = loss.item() * data.size(0)
-    print(f'Epoch {epoch+1} \t\t Training Loss: {train_loss / len(train_loader)} \t\t Validation Loss: {valid_loss / len(valid_loader)}')
-    if min_valid_loss > valid_loss:
-        print(f'Validation Loss Decreased({min_valid_loss:.6f}--->{valid_loss:.6f}) \t Saving The Model')
-        min_valid_loss = valid_loss
-        # Saving State Dict
-        torch.save(model.state_dict(), model_path)
-    if valid_loss < best_val_loss:
-        best_val_loss = valid_loss
-        counter = 0 
+        criterion = nn.L1Loss() #nn.MSELoss() #torch.nn.SmoothL1Loss()   nn.CrossEntropyLoss()
+        print("MAE Loss Function!")
+    elif loss_func == 'MSE':
+        
+        criterion = nn.MSELoss() #nn.MSELoss() #torch.nn.SmoothL1Loss()   nn.CrossEntropyLoss()
+        print("MSE Loss Function!")
+
+    elif loss_func == 'RMSE':
+        
+        criterion = RMSELoss() #nn.MSELoss() #torch.nn.SmoothL1Loss()   nn.CrossEntropyLoss()
+        print("RMSE Loss Function!")
+    
+    elif loss_func == 'dense_weight_RMSE':
+        print(f'Custom Loss function {loss_func}!')
+        criterion = dense_weight_loss_RMSE(alpha = None, targets_all = train_annot)
+
+    elif loss_func == 'dense_weight_tuned_RMSE':
+        print(f'Custom Loss function {loss_func}!')
+        criterion = dense_weight_loss_tuned_RMSE(alpha = None, targets_all = train_annot)
+    elif loss_func == 'RMSLE':
+        print(f'Custom Loss function {loss_func}!')
+        criterion = RMSLELoss()
+    
     else:
-        counter += 1
-        if counter >= patience:
-            print("Early stopping triggered! No improvement.")
-            break  # Stop training if no improvement after patience epochs
+        
+        criterion = nn.L1Loss() #nn.MSELoss() #torch.nn.SmoothL1Loss()   nn.CrossEntropyLoss()
+        print("No Loss Function set, use default!")
+        loss_func = 'MAE'
 
 
-model = embeddingsNN(input_size, hidden_size, output_size)
-model = model.to(device)
-model.load_state_dict(torch.load(model_path)) 
-model.eval()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay  = 1e-7)
+    best_val_loss = float('inf')
+    min_valid_loss = np.inf
+
+    patience = 150
 
 
-# Make predictions on the test set
+    for epoch in range(num_epochs):
+        train_loss = 0.0
+        model.train()  
+        model = model.to(device)
+        # Training
+        for data, labels in train_loader:
+            data, labels = data.to(device), labels.to(device)
 
-annotations = []
-predictions = []
+            optimizer.zero_grad()
+            output = model(data)
+            loss = criterion(output,labels)
+
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item()
 
 
-with torch.no_grad():
-    for inputs, labels in test_loader:
-        inputs = inputs.to(device)  # Assuming 'device' is defined as the same device as your model
-        outputs = model(inputs)
+        valid_loss = 0.0
+        model.eval()     # Optional when not using Model Specific layer
+        for data, labels in valid_loader:
+            data, labels = data.to(device), labels.to(device)
+            
+            output = model(data)
+            loss = criterion(output,labels)
+            valid_loss = loss.item() * data.size(0)
+        print(f'Epoch {epoch+1} \t\t Training Loss: {train_loss / len(train_loader)} \t\t Validation Loss: {valid_loss / len(valid_loader)}')
+        if min_valid_loss > valid_loss:
+            print(f'Validation Loss Decreased({min_valid_loss:.6f}--->{valid_loss:.6f}) \t Saving The Model')
+            min_valid_loss = valid_loss
+            # Saving State Dict
+            torch.save(model.state_dict(), model_path)
+        if valid_loss < best_val_loss:
+            best_val_loss = valid_loss
+            counter = 0 
+        else:
+            counter += 1
+            if counter >= patience:
+                print("Early stopping triggered! No improvement.")
+                break  # Stop training if no improvement after patience epochs
 
-        predictions.append(outputs.cpu().numpy()[0])
-        annotations.append(labels.cpu().numpy()[0])
-errors = np.array(predictions) - np.array(annotations)
 
-error_df = pd.DataFrame(errors)
-    # Calculate Mean Squared Error (MSE)
-mean_errors_df = error_df.mean()
-mean_abs_errors_df = error_df.abs().mean()
-mse_df = (error_df**2).mean()
-rmse_df = np.sqrt(mse_df)
-r2 = r2_score((annotations), (predictions))
-formatted_out = np.round(predictions, 2)
-formatted_annot = np.round(annotations, 2)
-for i in range(len(predictions)):
-        print(f"Annotation:{formatted_annot[i]} ") 
-        print(f"Prediction:{formatted_out[i]} ")
-        print(f"Mean: [13.28, 9.53, 13.17, 9.47, 15.06, 19.69, 12.22, 8.12, 3.24] \n")
+    model = embeddingsNN(input_size, hidden_size, output_size)
+    model = model.to(device)
+    model.load_state_dict(torch.load(model_path)) 
+    model.eval()
 
-evaluation = {
-                'ME' : [np.mean(mean_errors_df)],
-                'MAE' :  [np.mean(mean_abs_errors_df)],
-                'MSE' : [np.mean(mse_df)],
-                'RMSE' : [np.mean(rmse_df)],
-                "R2" : r2
-            }
-print(f"\noverall: \nME: {np.mean(mean_errors_df):.2f} \nMAE: {np.mean(mean_abs_errors_df):.2f}\nMSE: {np.mean(mse_df):.2f}\nRMSE: {np.mean(rmse_df):.2f}\nR2: {r2:.2f}")
+
+    # Make predictions on the test set
+
+    annotations = []
+    predictions = []
+
+
+    with torch.no_grad():
+        for inputs, labels in test_loader:
+            inputs = inputs.to(device)  # Assuming 'device' is defined as the same device as your model
+            outputs = model(inputs)
+
+            predictions.append(outputs.cpu().numpy()[0])
+            annotations.append(labels.cpu().numpy()[0])
+    errors = np.array(predictions) - np.array(annotations)
+
+    error_df = pd.DataFrame(errors)
+        # Calculate Mean Squared Error (MSE)
+    mean_errors_df = error_df.mean()
+    mean_abs_errors_df = error_df.abs().mean()
+    mse_df = (error_df**2).mean()
+    rmse_df = np.sqrt(mse_df)
+    r2 = r2_score((annotations), (predictions))
+    formatted_out = np.round(predictions, 2)
+    formatted_annot = np.round(annotations, 2)
+    for i in range(len(predictions)):
+            print(f"Annotation:{formatted_annot[i]} ") 
+            print(f"Prediction:{formatted_out[i]} ")
+            print(f"Mean: [13.28, 9.53, 13.17, 9.47, 15.06, 19.69, 12.22, 8.12, 3.24] \n")
+    model_name ='Transfer_learning_embeddings'
+    evaluation = {
+                    'Model' : [model_name],
+                    'ME' : [np.mean(mean_errors_df)],
+                    'MAE' :  [np.mean(mean_abs_errors_df)],
+                    'MSE' : [np.mean(mse_df)],
+                    'RMSE' : [np.mean(rmse_df)],
+                    "R2" : r2
+                }
+        #metrics for detailed
+
+    csv_information = { 
+                    'Model' : model_name,
+                    #'resampling' : cfg.resampling,
+                    'Labels' : [gems9],
+                    'lr' : learning_rate,
+                    'loss_function' : loss_func,
+                    'dense_weight_alpha': dense_weight_alpha ,
+                    'batch size' : batch_size,
+                    'snippet_duration_s' : 3,
+                    'oversampling': oversampling,
+                    'oversampling_tolerance': oversampling_tolerance,
+                    'oversampling_ratio' : oversampling_ratio,
+                    'oversampling_method': oversampling_method,
+                    'data_augmentation': data_augmentation
+
+
+                }
+    MAE = ['Wonder MAE', 'Transcendence MAE', 'Nostalgia MAE', 'Tenderness MAE', 'Peacfulness MAE', 'Joy MAE', 'Power MAE', 'Tension MAE', 'Sadness MAE']
+    gems9_MAE = pd.DataFrame(columns=MAE)
+    gems9_pos = ['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']
+    RMSE=  ['Wonder RMSE', 'Transcendence RMSE', 'Nostalgia RMSE', 'Tenderness RMSE', 'Peacfulness RMSE', 'Joy RMSE', 'Power RMSE', 'Tension RMSE', 'Sadness RMSE']
+    gems9_RMSE = pd.DataFrame(columns=RMSE)
+
+    if len(csv_information['Labels'][0])==1:
+        position = gems9_pos.index(csv_information['Labels'][0][0])
+        MAE_list = [np.nan] * 9
+        MAE_list[position] = mean_abs_errors_df[0]
+        gems9_MAE.loc[len(gems9_MAE)] = MAE_list
+        RMSE_list = [np.nan] * 9
+        RMSE_list[position] = rmse_df[0]
+        gems9_RMSE.loc[len(gems9_RMSE)] = RMSE_list
+
+    if len(csv_information['Labels'][0]) == 9:
+
+
+    
+        gems9_MAE = pd.concat([gems9_MAE,pd.DataFrame([mean_abs_errors_df.values ], columns=MAE)], ignore_index=True) 
+
+
+        gems9_RMSE = pd.concat([gems9_RMSE,pd.DataFrame([rmse_df.values], columns=RMSE)], ignore_index=True) 
+
+
+    csv_information.update(evaluation)
+
+        #make copy for detailed csv
+    csv_information_detailed = csv_information
+
+        ## if csv file does not exist, create blank file
+    import csv
+    if not os.path.isfile('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv'):
+        header = ['Model', 'Labels', 'lr', 'dense_weight_alpha', 'snippet_duration_s', 'batch size',  'data_augumentation', 'ME', 'MAE', 'MSE', 'RMSE']
+        with open('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv', 'w') as file:
+            writer = csv.writer(file)
+            writer.writerow(header) 
+
+
+    csv_file = pd.read_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv')
+        
+    cur_model = csv_information['Model'][0]
+    cur_labels = f"{csv_information['Labels'][0]}"    
+    cur_lr = csv_information['lr']
+    cur_loss = csv_information['loss_function']
+    cur_alpha = csv_information['dense_weight_alpha']
+    cur_duration = csv_information['snippet_duration_s']
+    cur_batch = csv_information['batch size']
+    cur_os = csv_information['oversampling']
+    if not csv_information['data_augmentation']:
+        cur_da = 0
+        csv_information['data_augmentation']  = 0
+    else:
+        cur_da = csv_information['data_augmentation']
+            
+    if cur_os == False:
+        cur_os_ratio = 0
+        cur_os_tol = 0
+        cur_os_method = 'No oversampling'
+        csv_information['oversampling_ratio'] = 0
+        csv_information['oversampling_tolerance'] = 0
+        csv_information['oversampling_method'] = 'No oversampling'
+        csv_information_detailed['oversampling_ratio'] = 0
+        csv_information_detailed['oversampling_tolerance'] = 0
+        csv_information_detailed['oversampling_method'] = 'No oversampling'
+
+
+    else:
+        cur_os_ratio = csv_information['oversampling_ratio']
+        cur_os_tol = csv_information['oversampling_tolerance']
+        cur_os_method = csv_information['oversampling_method']
+        cur_os_ratio = csv_information['oversampling_ratio']
+        cur_os_tol = csv_information['oversampling_tolerance']
+        cur_os_method = csv_information['oversampling_method']
+        
+        #create the dataframes for both csv
+    csv_information_df = pd.DataFrame(csv_information)
+    csv_information_detailed_df = pd.DataFrame(csv_information_detailed)
+
+    csv_information_detailed_df =  pd.concat([csv_information_detailed_df, gems9_MAE], axis=1)
+
+    csv_information_detailed_df =  pd.concat([csv_information_detailed_df, gems9_RMSE], axis=1)
+        
+
+        #write csv  
+    if not csv_file.empty:
+
+            # if any(csv_file['Labels'].apply(lambda x: x == cur_labels)):!!!!!!!!!!!!!
+            #     print('Triggered')!!!!!!!!!!
+            
+        condition = (
+                (csv_file['Model'] == cur_model) &
+                (csv_file['lr'] == cur_lr)  &
+                (csv_file['Labels'] == cur_labels) &
+                (csv_file['loss_function'] == cur_loss) &
+                (csv_file['dense_weight_alpha'] == cur_alpha) &
+                (csv_file['snippet_duration_s'] == cur_duration) &
+                (csv_file['batch size'] == cur_batch) & 
+                (csv_file['oversampling_ratio'] == cur_os_ratio) & 
+                (csv_file['oversampling_tolerance'] == cur_os_tol) & 
+                (csv_file['oversampling'] == cur_os) & 
+                (csv_file['oversampling_method'] == cur_os_method ) &
+                (csv_file['data_augmentation'] == cur_da )
+                
+                )
+
+
+
+        if any(condition):
+            csv_file = csv_file[~condition]
+            print(csv_file)
+                #csv_file[condition] = csv_information_df
+            new_csv = pd.concat([csv_file, csv_information_df])
+
+        else:
+            new_csv = pd.concat([csv_file, csv_information_df])
+    else:
+        new_csv = pd.concat([csv_file, csv_information_df])
+
+
+    new_csv.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv', index=False)
+
+
+    # #########SAVE ALL ERRORS FOR EACH LABEL IN CSV###############DETAILED SAVE
+
+    if not os.path.isfile('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv'):
+        header = ['Model', 'Labels', 'lr', 'dense_weight_alpha', 'snippet_duration_s', 'batch size',  'data_augmentation', 'ME', 'MAE', 'MSE', 'RMSE',  'Wonder MAE', 'Transcendence MAE', 'Nostalgia MAE', 'Tenderness MAE', 'Peacfulness MAE', 'Joy MAE', 'Power MAE', 'Tension MAE', 'Sadness MAE', 'Wonder RMSE', 'Transcendence RMSE', 'Nostalgia RMSE', 'Tenderness RMSE', 'Peacfulness RMSE', 'Joy RMSE', 'Power RMSE', 'Tension RMSE', 'Sadness RMSE']
+            
+        with open('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv', 'w') as file:
+            writer = csv.writer(file)
+            writer.writerow(header) 
+        csv_information_detailed_df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv', index=False)
+        
+    else:
+        csv_file = pd.read_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv')
+
+
+            # if any(csv_file['Labels'].apply(lambda x: x == cur_labels)):!!!!!!!!!!!!!
+            #     print('Triggered')!!!!!!!!!!
+            
+        condition = (
+                (csv_file['Model'] == cur_model) &
+                (csv_file['lr'] == cur_lr)  &
+                (csv_file['Labels'] == cur_labels) &
+                (csv_file['loss_function'] == cur_loss) &
+                (csv_file['dense_weight_alpha'] == cur_alpha) &
+                (csv_file['snippet_duration_s'] == cur_duration) &
+                (csv_file['batch size'] == cur_batch) & 
+                (csv_file['oversampling_ratio'] == cur_os_ratio) & 
+                (csv_file['oversampling_tolerance'] == cur_os_tol) & 
+                (csv_file['oversampling'] == cur_os) & 
+                (csv_file['oversampling_method'] == cur_os_method ) &
+                (csv_file['data_augmentation'] == cur_da )
+                
+                )
+
+        print(csv_file)
+        print(csv_information_detailed_df)
+        new_csv = pd.concat([csv_file, csv_information_detailed_df])
+        if any(condition):
+            csv_file = csv_file[~condition]
+                #csv_file[condition] = csv_information_df
+            new_csv = pd.concat([csv_file, csv_information_detailed_df])
+
+        else:
+            new_csv = pd.concat([csv_file, csv_information_detailed_df])
+
+
+
+        new_csv.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv', index=False)
+
+
+
+
+
+
+    print(f"\noverall: \nME: {np.mean(mean_errors_df):.2f} \nMAE: {np.mean(mean_abs_errors_df):.2f}\nMSE: {np.mean(mse_df):.2f}\nRMSE: {np.mean(rmse_df):.2f}\nR2: {r2:.2f}")
+
+
+    
+if __name__ == "__main__":
+    run_training_transfer_learning(loss_func='MAE')

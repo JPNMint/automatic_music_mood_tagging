@@ -1,3 +1,6 @@
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 import os
 import typing
 
@@ -55,7 +58,7 @@ def calcAUC(predictions, annotations, n_classes):
     return roc_aucs, pr_aucs
 
 
-def test_model(model, num_classes, test_loader, device, csv_information, plot=False, model_name=None, transform = None, training = 'test', scale = None , train_y = None):
+def test_model(model, num_classes, test_loader, device, csv_information, plot=False, model_name=None, transform = None, training = 'test', scale = None , train_y = None, task = 'regression', testing = False):
     if transform == 'log':
         print('Output data is log transform, applying np.exp to output.')
     if scale == 'None':
@@ -98,7 +101,12 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
             elif transform == 'reciprocal':
                 model_outs = np.reciprocal(model(test_feat[:, :, 0]).cpu().numpy()[0])
             else:
-                model_outs = model(test_feat[:, :, 0]).cpu().numpy()[0]
+                if task == 'classification':
+                    print(test_feat[:, :, 0])
+                    model_outs = model(test_feat[:, :, 0]).cpu().numpy()[0]
+                    model_outs = model_outs.round()
+                else:
+                    model_outs = model(test_feat[:, :, 0]).cpu().numpy()[0]
             
             error = test_targ[0].numpy() - model_outs
         
@@ -153,6 +161,7 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
     min_df = error_df.min()
 
     r2 = r2_score(np.array(actual), np.array(predictions))
+    print(r2)
     print(mse_df)
     index_list = ['mean error', 'm abs error', 'mse', 'rmse', 'maximums', 'minimums']
 
@@ -225,146 +234,147 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
 
     ## if csv file does not exist, create blank file
     import csv
-    if not os.path.isfile('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv'):
-        header = ['Model', 'Labels', 'lr', 'dense_weight_alpha', 'snippet_duration_s', 'batch size',  'data_augumentation', 'ME', 'MAE', 'MSE', 'RMSE']
-        with open('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv', 'w') as file:
-            writer = csv.writer(file)
-            writer.writerow(header) 
+    if testing == False:
+        if not os.path.isfile('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv'):
+            header = ['Model', 'Labels', 'lr', 'dense_weight_alpha', 'snippet_duration_s', 'batch size',  'data_augumentation', 'ME', 'MAE', 'MSE', 'RMSE']
+            with open('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv', 'w') as file:
+                writer = csv.writer(file)
+                writer.writerow(header) 
 
-    csv_file = pd.read_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv')
-    
-    cur_model = csv_information['Model'][0]
-    cur_labels = f"{csv_information['Labels'][0]}"    
-    cur_lr = csv_information['lr']
-    cur_loss = csv_information['loss_function']
-    cur_alpha = csv_information['dense_weight_alpha']
-    cur_duration = csv_information['snippet_duration_s']
-    cur_batch = csv_information['batch size']
-    cur_os = csv_information['oversampling']
-    if not csv_information['data_augmentation']:
-        cur_da = 0
-        csv_information['data_augmentation']  = 0
-    else:
-        cur_da = csv_information['data_augmentation']
+        csv_file = pd.read_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv')
         
-    if cur_os == False:
-        cur_os_ratio = 0
-        cur_os_tol = 0
-        cur_os_method = 'No oversampling'
-        csv_information['oversampling_ratio'] = 0
-        csv_information['oversampling_tolerance'] = 0
-        csv_information['oversampling_method'] = 'No oversampling'
-        csv_information_detailed['oversampling_ratio'] = 0
-        csv_information_detailed['oversampling_tolerance'] = 0
-        csv_information_detailed['oversampling_method'] = 'No oversampling'
-
-
-    else:
-        cur_os_ratio = csv_information['oversampling_ratio']
-        cur_os_tol = csv_information['oversampling_tolerance']
-        cur_os_method = csv_information['oversampling_method']
-        cur_os_ratio = csv_information['oversampling_ratio']
-        cur_os_tol = csv_information['oversampling_tolerance']
-        cur_os_method = csv_information['oversampling_method']
-    
-    #create the dataframes for both csv
-    csv_information_df = pd.DataFrame(csv_information)
-    csv_information_detailed_df = pd.DataFrame(csv_information_detailed)
-
-    csv_information_detailed_df =  pd.concat([csv_information_detailed_df, gems9_MAE], axis=1)
-
-    csv_information_detailed_df =  pd.concat([csv_information_detailed_df, gems9_RMSE], axis=1)
-    
-
-    #write csv  
-    if not csv_file.empty:
-
-        # if any(csv_file['Labels'].apply(lambda x: x == cur_labels)):!!!!!!!!!!!!!
-        #     print('Triggered')!!!!!!!!!!
-        
-        condition = (
-            (csv_file['Model'] == cur_model) &
-            (csv_file['lr'] == cur_lr)  &
-            (csv_file['Labels'] == cur_labels) &
-            (csv_file['loss_function'] == cur_loss) &
-            (csv_file['dense_weight_alpha'] == cur_alpha) &
-            (csv_file['snippet_duration_s'] == cur_duration) &
-            (csv_file['batch size'] == cur_batch) & 
-            (csv_file['oversampling_ratio'] == cur_os_ratio) & 
-            (csv_file['oversampling_tolerance'] == cur_os_tol) & 
-            (csv_file['oversampling'] == cur_os) & 
-            (csv_file['oversampling_method'] == cur_os_method ) &
-            (csv_file['data_augmentation'] == cur_da )
+        cur_model = csv_information['Model'][0]
+        cur_labels = f"{csv_information['Labels'][0]}"    
+        cur_lr = csv_information['lr']
+        cur_loss = csv_information['loss_function']
+        cur_alpha = csv_information['dense_weight_alpha']
+        cur_duration = csv_information['snippet_duration_s']
+        cur_batch = csv_information['batch size']
+        cur_os = csv_information['oversampling']
+        if not csv_information['data_augmentation']:
+            cur_da = 0
+            csv_information['data_augmentation']  = 0
+        else:
+            cur_da = csv_information['data_augmentation']
             
-            )
+        if cur_os == False:
+            cur_os_ratio = 0
+            cur_os_tol = 0
+            cur_os_method = 'No oversampling'
+            csv_information['oversampling_ratio'] = 0
+            csv_information['oversampling_tolerance'] = 0
+            csv_information['oversampling_method'] = 'No oversampling'
+            csv_information_detailed['oversampling_ratio'] = 0
+            csv_information_detailed['oversampling_tolerance'] = 0
+            csv_information_detailed['oversampling_method'] = 'No oversampling'
+
+
+        else:
+            cur_os_ratio = csv_information['oversampling_ratio']
+            cur_os_tol = csv_information['oversampling_tolerance']
+            cur_os_method = csv_information['oversampling_method']
+            cur_os_ratio = csv_information['oversampling_ratio']
+            cur_os_tol = csv_information['oversampling_tolerance']
+            cur_os_method = csv_information['oversampling_method']
+        
+        #create the dataframes for both csv
+        csv_information_df = pd.DataFrame(csv_information)
+        csv_information_detailed_df = pd.DataFrame(csv_information_detailed)
+
+        csv_information_detailed_df =  pd.concat([csv_information_detailed_df, gems9_MAE], axis=1)
+
+        csv_information_detailed_df =  pd.concat([csv_information_detailed_df, gems9_RMSE], axis=1)
+        
+
+        #write csv  
+        if not csv_file.empty:
+
+            # if any(csv_file['Labels'].apply(lambda x: x == cur_labels)):!!!!!!!!!!!!!
+            #     print('Triggered')!!!!!!!!!!
+            
+            condition = (
+                (csv_file['Model'] == cur_model) &
+                (csv_file['lr'] == cur_lr)  &
+                (csv_file['Labels'] == cur_labels) &
+                (csv_file['loss_function'] == cur_loss) &
+                (csv_file['dense_weight_alpha'] == cur_alpha) &
+                (csv_file['snippet_duration_s'] == cur_duration) &
+                (csv_file['batch size'] == cur_batch) & 
+                (csv_file['oversampling_ratio'] == cur_os_ratio) & 
+                (csv_file['oversampling_tolerance'] == cur_os_tol) & 
+                (csv_file['oversampling'] == cur_os) & 
+                (csv_file['oversampling_method'] == cur_os_method ) &
+                (csv_file['data_augmentation'] == cur_da )
+                
+                )
 
 
 
-        if any(condition):
-            csv_file = csv_file[~condition]
+            if any(condition):
+                csv_file = csv_file[~condition]
+                print(csv_file)
+                #csv_file[condition] = csv_information_df
+                new_csv = pd.concat([csv_file, csv_information_df])
+
+            else:
+                new_csv = pd.concat([csv_file, csv_information_df])
+        else:
+            new_csv = pd.concat([csv_file, csv_information_df])
+
+
+        new_csv.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv', index=False)
+
+
+
+
+
+        # #########SAVE ALL ERRORS FOR EACH LABEL IN CSV###############DETAILED SAVE
+
+        if not os.path.isfile('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv'):
+            header = ['Model', 'Labels', 'lr', 'dense_weight_alpha', 'snippet_duration_s', 'batch size',  'data_augmentation', 'ME', 'MAE', 'MSE', 'RMSE',  'Wonder MAE', 'Transcendence MAE', 'Nostalgia MAE', 'Tenderness MAE', 'Peacfulness MAE', 'Joy MAE', 'Power MAE', 'Tension MAE', 'Sadness MAE', 'Wonder RMSE', 'Transcendence RMSE', 'Nostalgia RMSE', 'Tenderness RMSE', 'Peacfulness RMSE', 'Joy RMSE', 'Power RMSE', 'Tension RMSE', 'Sadness RMSE']
+            
+            with open('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv', 'w') as file:
+                writer = csv.writer(file)
+                writer.writerow(header) 
+            csv_information_detailed_df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv', index=False)
+        
+        else:
+            csv_file = pd.read_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv')
+
+
+            # if any(csv_file['Labels'].apply(lambda x: x == cur_labels)):!!!!!!!!!!!!!
+            #     print('Triggered')!!!!!!!!!!
+            
+            condition = (
+                (csv_file['Model'] == cur_model) &
+                (csv_file['lr'] == cur_lr)  &
+                (csv_file['Labels'] == cur_labels) &
+                (csv_file['loss_function'] == cur_loss) &
+                (csv_file['dense_weight_alpha'] == cur_alpha) &
+                (csv_file['snippet_duration_s'] == cur_duration) &
+                (csv_file['batch size'] == cur_batch) & 
+                (csv_file['oversampling_ratio'] == cur_os_ratio) & 
+                (csv_file['oversampling_tolerance'] == cur_os_tol) & 
+                (csv_file['oversampling'] == cur_os) & 
+                (csv_file['oversampling_method'] == cur_os_method ) &
+                (csv_file['data_augmentation'] == cur_da )
+                
+                )
+
             print(csv_file)
-            #csv_file[condition] = csv_information_df
-            new_csv = pd.concat([csv_file, csv_information_df])
-
-        else:
-            new_csv = pd.concat([csv_file, csv_information_df])
-    else:
-        new_csv = pd.concat([csv_file, csv_information_df])
-
-
-    new_csv.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list.csv', index=False)
-
-
-
-
-
-    # #########SAVE ALL ERRORS FOR EACH LABEL IN CSV###############DETAILED SAVE
-
-    if not os.path.isfile('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv'):
-        header = ['Model', 'Labels', 'lr', 'dense_weight_alpha', 'snippet_duration_s', 'batch size',  'data_augmentation', 'ME', 'MAE', 'MSE', 'RMSE',  'Wonder MAE', 'Transcendence MAE', 'Nostalgia MAE', 'Tenderness MAE', 'Peacfulness MAE', 'Joy MAE', 'Power MAE', 'Tension MAE', 'Sadness MAE', 'Wonder RMSE', 'Transcendence RMSE', 'Nostalgia RMSE', 'Tenderness RMSE', 'Peacfulness RMSE', 'Joy RMSE', 'Power RMSE', 'Tension RMSE', 'Sadness RMSE']
-        
-        with open('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv', 'w') as file:
-            writer = csv.writer(file)
-            writer.writerow(header) 
-        csv_information_detailed_df.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv', index=False)
-    
-    else:
-        csv_file = pd.read_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv')
-
-
-        # if any(csv_file['Labels'].apply(lambda x: x == cur_labels)):!!!!!!!!!!!!!
-        #     print('Triggered')!!!!!!!!!!
-        
-        condition = (
-            (csv_file['Model'] == cur_model) &
-            (csv_file['lr'] == cur_lr)  &
-            (csv_file['Labels'] == cur_labels) &
-            (csv_file['loss_function'] == cur_loss) &
-            (csv_file['dense_weight_alpha'] == cur_alpha) &
-            (csv_file['snippet_duration_s'] == cur_duration) &
-            (csv_file['batch size'] == cur_batch) & 
-            (csv_file['oversampling_ratio'] == cur_os_ratio) & 
-            (csv_file['oversampling_tolerance'] == cur_os_tol) & 
-            (csv_file['oversampling'] == cur_os) & 
-            (csv_file['oversampling_method'] == cur_os_method ) &
-            (csv_file['data_augmentation'] == cur_da )
-            
-            )
-
-        print(csv_file)
-        print(csv_information_detailed_df)
-        new_csv = pd.concat([csv_file, csv_information_detailed_df])
-        if any(condition):
-            csv_file = csv_file[~condition]
-            #csv_file[condition] = csv_information_df
+            print(csv_information_detailed_df)
             new_csv = pd.concat([csv_file, csv_information_detailed_df])
+            if any(condition):
+                csv_file = csv_file[~condition]
+                #csv_file[condition] = csv_information_df
+                new_csv = pd.concat([csv_file, csv_information_detailed_df])
 
-        else:
-            new_csv = pd.concat([csv_file, csv_information_detailed_df])
+            else:
+                new_csv = pd.concat([csv_file, csv_information_detailed_df])
 
 
 
-        new_csv.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv', index=False)
+            new_csv.to_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/performance/model_performance_list_detailed.csv', index=False)
 
 
 
@@ -372,13 +382,56 @@ def test_model(model, num_classes, test_loader, device, csv_information, plot=Fa
     print(f"\noverall: \nME: {np.mean(mean_errors_df):.2f} \nMAE: {np.mean(mean_abs_errors_df):.2f}\nMSE: {np.mean(mse_df):.2f}\nRMSE: {np.mean(rmse_df):.2f}")
 
     if plot:
-        df_pred = generate_dataframe(predictions, prediction_genres)
-        plot_data(df_pred, f'Test Predictions {model_name}')
+        df_pred = pd.DataFrame(formatted_out, columns=gems9_pos)
+        plot_pred = pd.melt(df_pred)
+        plot_pred["hue"] = plot_pred["variable"].apply(lambda x: x[:1])
+        means = [13.28, 9.53, 13.17, 9.47, 15.06, 19.69, 12.22, 8.12, 3.24]
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        
+        
+        g1 = sns.FacetGrid(plot_pred, col="variable", col_wrap=3, hue="variable")
+        g1.map(sns.histplot, "value", kde=True, stat='count')
+        g1.fig.subplots_adjust(top=0.9)
+        g1.fig.suptitle('Predicted - Histogram')
 
-        df_an = generate_dataframe(annotations, prediction_genres)
-        plot_data(df_an, f'Test Annotations')
+        
+
+
+        df_annot = pd.DataFrame(formatted_annot, columns=gems9_pos)
+        plot_annot = pd.melt(df_annot)
+        plot_annot["hue"] = plot_annot["variable"].apply(lambda x: x[:1])
+        
+        g2 = sns.FacetGrid(plot_annot, col="variable", col_wrap=3, hue="variable")
+        g2.map(sns.histplot, "value", kde=True, stat='count')
+        g2.fig.subplots_adjust(top=0.9)
+        g2.fig.suptitle('Annotation - Histogram')        
+
+        for ax, pos in zip(g1.axes.flat, means):
+            ax.axvline(x=pos, color='r', linestyle=':')
+            ax.text(pos,23, 'mean',rotation=90)
+        for ax, pos in zip(g2.axes.flat, means):
+            ax.axvline(x=pos, color='r', linestyle=':')
+            ax.text(pos,28, 'mean',rotation=90)
+
+
+        plt.show(g1)
+        plt.show(g2)
+
+        fig, (ax1, ax2) = plt.subplots(2,1,figsize=(20,12))
+        sns.boxplot(x="variable", y="value", data=pd.melt(df_pred) , ax= ax1)
+        ax1.set(ylim=(0,100), title = 'Predicted - Boxplot')
+
+        sns.boxplot(x="variable", y="value", data=pd.melt(df_annot) , ax= ax2)
+        ax2.set(ylim=(0,100), title = 'Annotation - Boxplot')
+
+        plt.show()
         print('plotted')
+
         pass
     each = {'ME': mean_errors_df,'MAE' : mean_abs_errors_df, 'MSE' : mse_df, 'RMSE' :rmse_df, 'maximum': maximums, 'minimum': minimums}
     overall = {'ME': np.mean(mean_errors_df), 'MAE': np.mean(mean_abs_errors_df), 'MSE' : np.mean(mse_df), 'RMSE': np.mean(rmse_df)}
     return each, overall
+
+
+# %%

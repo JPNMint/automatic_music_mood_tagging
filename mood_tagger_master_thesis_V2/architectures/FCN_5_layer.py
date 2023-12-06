@@ -2,6 +2,7 @@ import torch
 
 from architectures import LogMelSpec
 
+#cite https://github.com/minzwon/sota-music-tagging-models/blob/master/training/model.py#L9
 
 class Net(torch.nn.Module):
     MONO = True

@@ -192,6 +192,10 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
     )
 
     ######loading data
+    if cfg.model.architecture == 'FCN_6_layer_classifier':
+        task = 'classification'
+    else:
+        task = 'regression'
     test_loader, train_loader, valid_loader, train_annot, targets_all = load_data(batch_size,
                                                         feat_settings,
                                                         gpu_num,
@@ -210,7 +214,9 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
                                                         tolerance = tolerance,
                                                         os_ratio = os_ratio,
                                                         train_y = GEMS_9,
-                                                        data_augmentation = data_augmentation) 
+                                                        data_augmentation = data_augmentation,
+                                                        alpha = cfg.datasets.dense_weight_alpha,
+                                                        task = task) 
     
 
 
@@ -224,8 +230,8 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
             criterion = dense_weight_loss(cfg.datasets.dense_weight_alpha, targets_all = train_annot)
         else:
             criterion = dense_weight_loss(cfg.datasets.dense_weight_alpha, targets_all = targets_all)
-            dense_weight_loss_tuned
-    if loss_func == 'dense_weight_tuned':
+
+    elif loss_func == 'dense_weight_tuned':
         print(f'Custom Loss function {loss_func}!')
         criterion = dense_weight_loss_tuned(alpha = None, targets_all = train_annot)
 
@@ -257,6 +263,9 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
     elif loss_func == 'RMSLE':
         print(f'Custom Loss function {loss_func}!')
         criterion = RMSLELoss()
+    elif loss_func == 'Cross_entropy':
+        print(f'Custom Loss function {loss_func}!')
+        criterion = nn.BCELoss() #torch.nn.CrossEntropyLoss
     
     else:
         
@@ -291,7 +300,10 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
     if early_stopping:
         callbacks.append(
             dl.EarlyStoppingCallback(patience=patience, loader_key="valid", metric_key="loss", minimize=True))
-
+    if loss_func != 'dense_weight':
+        alpha = 0
+    else:
+        alpha = cfg.datasets.dense_weight_alpha
     
     # model training
     runner.train(
@@ -309,10 +321,7 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
         callbacks=callbacks,
     )
     
-    if loss_func != 'dense_weight':
-        alpha = 0
-    else:
-        alpha = cfg.datasets.dense_weight_alpha
+
 
     csv_information = { 
                 'Model' : cfg.model.architecture,
@@ -332,7 +341,7 @@ def run_training(cfg: DictConfig, GEMS_9 = ['Wonder', 'Transcendence', 'Nostalgi
 
 
             }
-    test_model(model, num_classes, test_loader, engine.device, transform = cfg.training.transformation, training = 'training', scale = scale, model_name = cfg.model.architecture, csv_information = csv_information )
+    test_model(model, num_classes, test_loader, engine.device, transform = cfg.training.transformation, training = 'training', scale = scale, model_name = cfg.model.architecture, csv_information = csv_information , task = task)
 
 
 

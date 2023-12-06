@@ -106,16 +106,16 @@ class Net(torch.nn.Module):
         )
 
     def forward(self, x_input: torch.Tensor) -> torch.Tensor:
-        #CHECK HOW TO CONCAT
-        if self.mode == 'train' and len(self.data_augmentation) != 0:
-            #should be random draw
-            #depending on chain length 
-            if 'time_stretch' in self.data_augmentation:
-                x_input_aug = librosa.effects.time_stretch(x_input, 1.0008) #shifted 25 ms bei 30 sekunden
+        # #CHECK HOW TO CONCAT
+        # if self.mode == 'train' and len(self.data_augmentation) != 0:
+        #     #should be random draw
+        #     #depending on chain length 
+        #     if 'time_stretch' in self.data_augmentation:
+        #         x_input_aug = librosa.effects.time_stretch(x_input, 1.0008) #shifted 25 ms bei 30 sekunden
 
-            if 'pitch_shift' in self.data_augmentation:
+        #     if 'pitch_shift' in self.data_augmentation:
                 
-                x_input_aug = librosa.effects.pitch_shift(x_input, self.sample_rate, n_steps=1)
+        #         x_input_aug = librosa.effects.pitch_shift(x_input, self.sample_rate, n_steps=1)
 
 
 

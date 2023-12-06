@@ -71,19 +71,19 @@ class Net(torch.nn.Module):
         self.layer3 = Conv_1d(midend_channel, midend_channel, 7, 1, 1)
 
         # Dense
-        dense_channel = 200
-        self.dense1 = torch.nn.Linear((561+(midend_channel*3))*2, dense_channel)
-        self.bn = torch.nn.BatchNorm1d(dense_channel)
-        self.relu = torch.nn.ReLU()
-        self.dropout = torch.nn.Dropout(0.5)
-        self.postprocess = torch.nn.Sequential(
-                            torch.nn.Linear(200,100),
-                            torch.nn.Dropout(p = 0.5),
-                            torch.nn.Linear(100,50),
-                            torch.nn.Dropout(p = 0.5),
-                            torch.nn.Linear(50,25),
-                            torch.nn.Linear(25,num_classes)                       
-                                )
+        # dense_channel = 200
+        # self.dense1 = torch.nn.Linear((561+(midend_channel*3))*2, dense_channel)
+        # self.bn = torch.nn.BatchNorm1d(dense_channel)
+        # self.relu = torch.nn.ReLU()
+        # self.dropout = torch.nn.Dropout(0.5)
+        # self.postprocess = torch.nn.Sequential(
+        #                     torch.nn.Linear(200,100),
+        #                     torch.nn.Dropout(p = 0.5),
+        #                     torch.nn.Linear(100,50),
+        #                     torch.nn.Dropout(p = 0.5),
+        #                     torch.nn.Linear(50,25),
+        #                     torch.nn.Linear(25,num_classes)                       
+        #                         )
 
 
     def forward(self, x_input: torch.Tensor) -> torch.Tensor:
@@ -129,13 +129,13 @@ class Net(torch.nn.Module):
         out = torch.cat([mp, avgp], dim=1)
         out = out.squeeze(2)
         ## dense
-        out = self.relu(self.bn(self.dense1(out)))
-        out = self.dropout(out)
-        print(out.shape)
+        # out = self.relu(self.bn(self.dense1(out)))
+        # out = self.dropout(out)
+        # print(out.shape)
         #out = torch.nn.Sigmoid()(out)
         x = out
-        for cur_layer in self.postprocess:
-            x = cur_layer(x)
+        # for cur_layer in self.postprocess:
+        #     x = cur_layer(x)
         
         return x #scores.view(-1, self.num_classes)
 

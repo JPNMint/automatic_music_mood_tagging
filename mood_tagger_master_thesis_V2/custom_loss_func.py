@@ -43,6 +43,11 @@ class dense_weight_loss(nn.Module):
         print(f'Alpha is set to {alpha}!')
         #fit for each label 
         #alphas = [0, 0, 1, 0, 0, 0, 0, 1, 2]
+        #for more elegance do it with the set instead of hard coding
+
+        
+        if type(targets_all) is not np.ndarray:
+            targets_all = np.array(targets_all)
         for i in range(targets_all.shape[1]):
             self.dw_cur = f'dw{i}'
             self.dw_all[self.dw_cur] = DenseWeight(alpha=alpha)
@@ -95,7 +100,18 @@ class dense_weight_loss_tuned(nn.Module):
         # joy lower
         # tension lower
         # sadness lower
-        alphas = [0, 2, 2, 0.6, 0, 2.2, 1.4 ,1.2, 0.6, 0.1] #statt 3 0.5
+        skewnewss = [0.63,0.746,0.633,0.850,0.944,0.484,0.853,1.468,2.579]
+        skew_thresh = [3, 2 , 1]
+        alphas = []
+        for value in skewnewss:
+            if abs(value) > 1:
+                alphas.append(skew_thresh[0])
+            elif (abs(value) < 1 and abs(value) > 0.5):
+                alphas.append(skew_thresh[1])
+            else:
+                alphas.append(skew_thresh[2])
+
+        #alphas = [0, 2, 2, 0.6, 0, 2.2, 1.4 ,1.2, 0.6, 0.1] #statt 3 0.5
         for i in range(targets_all.shape[1]):
             self.dw_cur = f'dw{i}'
             self.dw_all[self.dw_cur] = DenseWeight(alpha=alphas[i])
@@ -104,7 +120,7 @@ class dense_weight_loss_tuned(nn.Module):
         #self.testing.fit(targets_all[:,6])
         #self.dw.fit(targets_all)
         #['Wonder', 'Transcendence', 'Nostalgia', 'Tenderness', 'Peacfulness', 'Joy', 'Power', 'Tension', 'Sadness']
-        self.dense_weight_yes = [False, True, False, True, False, True, True, True, True]
+        self.dense_weight_yes = [True, True, True, True, True, True, True, True, True]
     def forward(self, predictions, targets):
         try:
             

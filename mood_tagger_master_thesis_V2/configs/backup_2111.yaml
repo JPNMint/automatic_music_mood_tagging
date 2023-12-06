@@ -1,0 +1,42 @@
+datasets:
+  data_augmentation: 0
+  dense_weight_alpha: 4
+  labels:
+  - Wonder
+  - Transcendence
+  - Nostalgia
+  - Tenderness
+  - Peacfulness
+  - Joy
+  - Power
+  - Tension
+  - Sadness
+  loss_func: MAE
+  names:
+  - emma_gems9
+  oversampling: false
+  oversampling_method: None
+  oversampling_ratio: 0
+  oversampling_tolerance: 0
+  scale: None
+features:
+  frame_rate: 5
+  freq_bins: 200
+  sample_rate: 44100
+  window_size: 8192
+model:
+  architecture: pretrained_musicnn
+  audio_inputs: true
+training:
+  batch_size: 16
+  k_samples: 1e5
+  learning_rate: 1e-3
+  max_num_epochs: 999999
+  memory_map: true
+  num_data_threads: 8
+  patience: 25
+  refinements: 3
+  sequence_hop: 40
+  sequence_length: 150
+  transformation: None
+  validation_size: 0.5

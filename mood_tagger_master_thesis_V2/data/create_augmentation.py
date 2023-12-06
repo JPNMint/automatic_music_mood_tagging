@@ -1,11 +1,11 @@
-from audiomentations import Compose, AddGaussianNoise, TimeStretch, PitchShift, Shift, Mp3Compression, LowPassFilter, AddBackgroundNoise, Gain, GainTransition
+from audiomentations import Compose, AddGaussianNoise, TimeStretch, PitchShift, Shift, Mp3Compression, LowPassFilter, AddBackgroundNoise, Gain, GainTransition, Limiter
 import numpy as np
 import librosa
 import pathlib as Path
 import random
 
 def create_augmentation(transformations):
-
+    strength = 1
 
 
     bgPath = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/data/Background noise'
@@ -26,18 +26,22 @@ def create_augmentation(transformations):
         PitchShift(min_semitones=-4, max_semitones=4, p=0.5),
         Shift(p=0.5),
     ])
-    if transformations not in [1, 2, 4]:
+    if transformations not in [1, 2, 4, 7]:
         raise ValueError("You can only select 1, 2 or 4 transformation chains!")
     randombg = random.choices(bg_folder)
+    mp3_strength = {0.5:56, 1:40, 1.5:32, 2:24}
+    bg_strength = {0.5:27, 1:18, 1.5:13, 2:10}
     available_transformations = {
          #implement equasition if result is bad
-        'time_stretch' : TimeStretch(min_rate=0.95, max_rate=1.05, p=1),
-        'pitch_shift' : PitchShift(min_semitones=-4, max_semitones=4, p=1),
-        'mp3compression' : Mp3Compression(min_bitrate=40, max_bitrate= 40 ,backend= 'lameenc', p=1),
-        'lowpass' : LowPassFilter(min_cutoff_freq=20,max_cutoff_freq=150,min_rolloff =6, max_rolloff=6, p=1),
-        'bgnoise' : AddBackgroundNoise(randombg,min_snr_db=18,max_snr_db=18, p=1),
-        'timeshift' : Shift(min_shift=0.05,max_shift=0.05, shift_unit = 'seconds', p=1.0),
-        'gain' : GainTransition(min_gain_db=-4,    max_gain_db=4,    p=1.0)
+        'time_stretch_pitch_shift' : pitch_time(strength),
+        # 'pitch_shift' : PitchShift(min_semitones=-4, max_semitones=4, p=1),
+        'mp3compression' : Mp3Compression(min_bitrate=mp3_strength[strength], max_bitrate= mp3_strength[strength] ,backend= 'lameenc', p=1),
+        'lowpass' : LowPassFilter(min_cutoff_freq=20,max_cutoff_freq=150,min_rolloff = 6*strength, max_rolloff=6*strength, p=1),
+        'bgnoise' : AddBackgroundNoise(randombg,min_snr_db=bg_strength[strength],max_snr_db=bg_strength[strength], p=1),
+        'timeshift' : Shift(min_shift=0.05*strength,max_shift=0.05*strength, shift_unit = 'seconds', p=1.0),
+        'gain' : GainTransition(min_gain_db=-4*strength,    max_gain_db=4*strength,    p=1.0),
+        'limiter' : Limiter(min_threshold_db=-60.0,    max_threshold_db=-6.0,    threshold_mode="relative_to_signal_peak",    max_release = 0.1,    p=1.0),
+
     }
     
 
@@ -66,7 +70,12 @@ def create_augmentation(transformations):
 
         augment_funcs = []
         for i in choices:
-            augment_funcs.append(available_transformations[i])
+            if i == 'time_stretch_pitch_shift':
+                aug_dict = available_transformations[i]
+                for k , val in aug_dict.items():
+                    augment_funcs.append(val)
+            else:     
+                augment_funcs.append(available_transformations[i])
 
         augment = Compose(augment_funcs)
 
@@ -76,6 +85,22 @@ def create_augmentation(transformations):
         np.save(filepath, augmented_samples)
         import soundfile as sf
 
-if __name__ == '__main__':
+def pitch_time(strength=1):
     
-    create_augmentation(4)
+    st = round(random.uniform(0, 1), 2)
+    sp = (np.sqrt(strength**2)-np.sqrt(st/4) )/ np.sqrt(1/5)
+    print(f'time stretch {1-sp/2}')
+    print(f'pitch shift {1-st/2}')
+    transformation = {
+        'time_stretch' : TimeStretch(min_rate=1-st/2, max_rate=1+st/2, p=1),
+        'pitch_shift' : PitchShift(min_semitones=-sp/2, max_semitones=sp/2, p=1),
+    }
+    return transformation
+
+
+if __name__ == '__main__':
+    for i in [1,2,4,7]:
+        create_augmentation(i)
+
+
+

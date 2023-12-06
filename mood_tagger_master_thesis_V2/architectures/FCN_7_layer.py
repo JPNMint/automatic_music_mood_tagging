@@ -5,6 +5,9 @@ import librosa
 import torchaudio
 from torchaudio.transforms import  TimeStretch
 
+
+#cite https://github.com/minzwon/sota-music-tagging-models/blob/master/training/model.py#L9
+
 #librosa 0.8.0 and numpy==1.24.4 worked before 
 class Net(torch.nn.Module):
     MONO = True

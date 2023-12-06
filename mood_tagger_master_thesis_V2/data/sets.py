@@ -173,7 +173,9 @@ class ListDataset(Dataset):
 
         #assert all(len(lists[0]) == len(cur_list) for cur_list in lists), "Size mismatch between lists"
         if all(len(lists[0]) == len(cur_list) for cur_list in lists):
-               print("Size mismatch between lists, data augmentation in training?")
+            print("No size mismatch!")
+        else:
+            print('size mismatch!')
         self.lists = lists
 
     def __getitem__(self, index):

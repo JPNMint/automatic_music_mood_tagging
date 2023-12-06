@@ -52,8 +52,8 @@ class Net(torch.nn.Module):
         hydra_run_path = os.path.join(run_path_pretrained, '.hydra')
         config_path = os.path.join(hydra_run_path, 'config.yaml')
         cfg = OmegaConf.load(config_path)
-
-        architecture, architecture_file = get_architecture('musicnn_transfer', None)
+#musicnn_transfer
+        architecture, architecture_file = get_architecture('musicnn_transfer_learning', None)
 
         self.pretrained_model  = architecture(audio_input=cfg.model.audio_inputs, num_classes=9, debug=False, **cfg.features)
         print(f'Pretrained model: musicnn_transfer')

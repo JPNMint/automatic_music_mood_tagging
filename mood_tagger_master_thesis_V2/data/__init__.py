@@ -7,7 +7,7 @@ from sklearn.preprocessing import MaxAbsScaler, MinMaxScaler, RobustScaler, Stan
 import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+from collections import defaultdict
 from data.sets import SnippetDataset, FramesToSamples, ListDataset
 from torch.utils.data import DataLoader
 from pathlib import Path
@@ -205,8 +205,12 @@ class Entry:
 
 
 
-def match_files(train_y):
-    emma_df = pd.read_csv(ANNOT_CSV_FILE, encoding="ISO-8859-1")
+def match_files(train_y, task):
+    if task == 'classification':
+        emma_df = pd.read_csv('/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/data/GEMS-INN_2023-01-30_expert_binary.csv', encoding="ISO-8859-1")
+    else:
+
+        emma_df = pd.read_csv(ANNOT_CSV_FILE, encoding="ISO-8859-1")
     emma_df.dropna(inplace=True)
     audio_files = os.listdir(AUDIO_PATH)
     audio_files = [cur_file for cur_file in audio_files if cur_file.endswith('.mp3')]
@@ -252,7 +256,7 @@ def match_files_augmentation(train_y, data_augmentation):
     emma_df = pd.read_csv(ANNOT_CSV_FILE, encoding="ISO-8859-1")
     emma_df.dropna(inplace=True)
     #TODO
-    if data_augmentation in [1,2,4]:
+    if data_augmentation in [1,2,4,8]:
         AUG_AUDIO_PATH = f'/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/data/cache_augmented_{data_augmentation}'
     audio_files = os.listdir(AUDIO_PATH)
     audio_files = [cur_file for cur_file in audio_files if cur_file.endswith('.mp3')]
@@ -297,7 +301,7 @@ def match_files_augmentation(train_y, data_augmentation):
 
 class RandomPartitioner:
     def __init__(self, feats, annots, targs, names, genres, seed, train_y,mode, tolerance, oversampling_method = None, 
-                oversampling = False,test_split=0.15, valid_split=0.15, os_ratio = 1, data_augmentation = True, data_aug_data = {}):
+                oversampling = False,test_split=0.15, valid_split=0.15, os_ratio = 1, data_augmentation = 'default', data_aug_data = {}, alpha = 1):
         self.feats = feats
         self.annots = annots
         self.targs = targs
@@ -318,7 +322,8 @@ class RandomPartitioner:
         self.train_indices = indices[valid_stop:]
         self.oversampling = oversampling
         self.oversampling_method = oversampling_method
-        if data_augmentation == True:
+        
+        if data_augmentation == 'default':
             self.aug_feats  = data_aug_data['aug_feats']
             self.aug_annots = data_aug_data['aug_annots']
             self.aug_targs = data_aug_data['aug_targs']
@@ -334,6 +339,15 @@ class RandomPartitioner:
             self.targs = np.concatenate((self.targs, self.aug_targs))
             self.names = self.names + self.aug_names
             self.genres = self.aug_genres + self.aug_genres
+        elif data_augmentation == 'oversampling':
+            self.feats  = data_aug_data['aug_feats']
+            self.annots = data_aug_data['aug_annots']
+            self.targs = data_aug_data['aug_targs']
+            self.names = data_aug_data['aug_names']
+            self.genres = data_aug_data['aug_genres']
+            #self.train_indices = [num + len(feats) for num in self.train_indices]
+        else:
+            pass
 ##############
         #self.test_names = [self.names[index] for index in self.test_indices]
         #self.train_names = [self.names[index] for index in self.train_indices]
@@ -400,11 +414,11 @@ class RandomPartitioner:
                 if mode == "train" :
                     print(f"Oversampling {len(matching_indices)} samples! (When training, does not affect testing), score tolerance: {self.tolerance}")
                 self.train_indices.extend(matching_indices)
-            elif self.oversampling_method == 'adaptive_density_oversampling':
+            elif self.oversampling_method == 'adaptive_density_oversampling' or self.oversampling_method == 'density_augmentation_oversampling':
                 print(f'Oversampling by {self.oversampling_method}')
                 print(f'Oversampling! Treshold is set to {tolerance} and ratio to {os_ratio}')
                 train_annots = annots[self.train_indices]
-                gdw = GetKDE()
+                gdw = GetKDE(alpha=alpha)
                 dense = gdw.fit(train_annots)
 
 
@@ -439,7 +453,7 @@ class RandomPartitioner:
                     oversampled.append(choice)
                     candidates = []
                     train_annots_new = annots[self.train_indices]
-                    gdw_new = GetKDE()
+                    gdw_new = GetKDE(alpha=alpha)
                     dense = gdw_new.fit(train_annots_new)
                     #look into this, why does it only resample 330 at the end in tenderness
                     threshold = dense<tolerance
@@ -447,11 +461,11 @@ class RandomPartitioner:
                     dense_thresh_indices = list(compress(self.train_indices, threshold)) 
                     counter += 1
 
-            elif self.oversampling_method == 'adaptive_density_oversampling_V2':
+            elif self.oversampling_method == 'adaptive_density_oversampling_V2' :
                 print(f'Oversampling by {self.oversampling_method}')
                 print(f'Oversampling! Treshold is set to {tolerance} and ratio to {os_ratio}')
                 train_annots = annots[self.train_indices]
-                gdw = GetKDE()
+                gdw = GetKDE(alpha=alpha)
                 dense = gdw.fit(train_annots)
 
 
@@ -517,7 +531,7 @@ class RandomPartitioner:
                     oversampled.append(choice)
                     candidates = []
                     train_annots_new = annots[self.train_indices]
-                    gdw_new = GetKDE()
+                    gdw_new = GetKDE(alpha=alpha)
                     dense = gdw_new.fit(train_annots_new)
                     #look into this, why does it only resample 330 at the end in tenderness
                     threshold = dense<tolerance
@@ -527,57 +541,36 @@ class RandomPartitioner:
                     dense_thresh_indices = list(compress(self.train_indices, threshold)) 
 
 
-            elif self.oversampling_method == 'last_adaptive_density_oversampling':
-                print(f'Oversampling by {self.oversampling_method}')
-                print(f'Oversampling! Treshold is set to {tolerance} and ratio to {os_ratio}')
-                train_annots = annots[self.train_indices]
-                gdw = GetKDE()
-                dense = gdw.fit(train_annots)
-
-
-                threshold = dense<tolerance #bool
-
-                print((dense>0.5).sum())
-                print((dense<0.5).sum())
-                new_len = math.floor(((dense>0.5).sum() - threshold.sum())/os_ratio)
-                
-                                
-                
-                w = (dense)[threshold] ##
-
-                from itertools import compress
-                dense_thresh_indices = list(compress(self.train_indices, threshold)) 
-                                #np.array(self.train_indices)[threshold]
-
-                import random
-                oversampled = []
-                candidates = []
-                counter = 0
-                while len(dense_thresh_indices)>0:
-                    
-                    if counter > new_len:
-                        break
-                    
-                    choice = dense_thresh_indices[np.argmin(w)]
-                    candidates.append(choice)
-                    self.train_indices = self.train_indices + candidates
-                    oversampled.append(choice)
-                    candidates = []
-                    train_annots_new = annots[self.train_indices]
-                    gdw_new = GetKDE()
-                    dense = gdw_new.fit(train_annots_new)
-                    #look into this, why does it only resample 330 at the end in tenderness
-                    threshold = dense<tolerance
-                    w = (dense)[threshold]
-                    dense_thresh_indices = list(compress(self.train_indices, threshold)) 
-                    counter += 1
-            elif self.oversampling_method == 'density_oversampling':
+            elif self.oversampling_method == 'density_oversampling_V2':
                 #this will only work with one label
                 #y = np.array(self.annots)
                 print(f'Oversampling by {self.oversampling_method}')
                 print(f'Oversampling! Treshold is set to {tolerance} and ratio to {os_ratio}')
                 train_annots = annots[self.train_indices]
                 gdw = GetKDE()
+                dense = gdw.fit(train_annots)
+                threshold = dense<tolerance #th
+                print((dense>0.5).sum())
+                print((dense<0.5).sum())
+                import random
+                
+                candidates = []
+                w = (dense)[threshold]
+                #train_annots_thresh = train_annots[threshold]
+
+                from itertools import compress
+                dense_thresh_indices = list(compress(self.train_indices, threshold)) 
+                #add factor
+                self.train_indices = self.train_indices + dense_thresh_indices 
+
+
+            elif self.oversampling_method == 'density_oversampling':
+                #this will only work with one label
+                #y = np.array(self.annots)
+                print(f'Oversampling by {self.oversampling_method}')
+                print(f'Oversampling! Treshold is set to {tolerance} and ratio to {os_ratio}')
+                train_annots = annots[self.train_indices]
+                gdw = GetKDE(alpha=alpha)
                 dense = gdw.fit(train_annots)
                 threshold = dense<tolerance #th
                 print((dense>0.5).sum())
@@ -599,6 +592,191 @@ class RandomPartitioner:
                     candidates.append(choice)
                 self.train_indices = self.train_indices + candidates
     
+            elif self.oversampling_method == 'density_oversampling_V3':
+                #this will only work with one label
+                #y = np.array(self.annots)
+                from itertools import compress
+                print(f'Oversampling by {self.oversampling_method}')
+                print(f'Oversampling! Treshold is set to {tolerance} and ratio to {os_ratio}')
+                train_annots = annots[self.train_indices]
+                gdw = GetKDE(alpha=alpha)
+                dense = gdw.fit(train_annots)
+                threshold = dense<tolerance #th
+                print((dense>0.5).sum())
+                print((dense<0.5).sum())
+
+                
+                dense_thresh_filter = (dense)[threshold]
+
+
+
+                dense_thresh_indices = list(compress(self.train_indices, threshold)) #indices of under the threshhold
+                q1 = np.percentile(dense_thresh_filter, 25)
+                q2 = np.percentile(dense_thresh_filter, 50)
+                q3 = np.percentile(dense_thresh_filter, 75)
+                indices_smaller_than_q1 = [index for index, value in enumerate(dense_thresh_filter) if value < q1]
+                indices_between_q1_and_q2 = [index for index, value in enumerate(dense_thresh_filter) if q1 <= value <= q2]
+                indices_higher_than_q3 = [index for index, value in enumerate(dense_thresh_filter) if value > q3]
+                smaller_q1 = [dense_thresh_indices[i] for i in indices_smaller_than_q1] 
+                between_q1_and_q2 = [dense_thresh_indices[i] for i in indices_between_q1_and_q2] 
+                higher_than_q3  = [dense_thresh_indices[i] for i in indices_higher_than_q3] 
+
+                self.train_indices = self.train_indices + smaller_q1 *3 + between_q1_and_q2*2 + higher_than_q3*1
+
+            elif self.oversampling_method == 'density_oversampling':
+                from itertools import compress
+                #this will only work with one label
+                #y = np.array(self.annots)
+                print(f'Oversampling by {self.oversampling_method}')
+                print(f'Oversampling! Treshold is set to {tolerance} and ratio to {os_ratio}')
+                train_annots = annots[self.train_indices]
+                gdw = GetKDE()
+                dense = gdw.fit(train_annots)
+                threshold = dense<tolerance #th
+                print((dense>0.5).sum())
+                print((dense<0.5).sum())
+                new_len = math.floor(((dense>0.5).sum() - threshold.sum())/os_ratio)
+                import random
+                
+                candidates = []
+                w = (1-dense)[threshold]
+                #train_annots_thresh = train_annots[threshold]
+
+                
+                dense_thresh_indices = list(compress(self.train_indices, threshold)) 
+                #np.array(self.train_indices)[threshold]
+                for i in range(new_len):
+                    random_chosen = random.choices(dense_thresh_indices,weights = w)
+                    #arange(a.size)
+                    choice = random_chosen[0] #np.where(train_annots == random_chosen)[0][0]
+                    candidates.append(choice)
+                self.train_indices = self.train_indices + candidates
+    
+            elif self.oversampling_method == 'average_density_oversampling' or self.oversampling_method == 'density_oversampling_augmentation':
+                from itertools import compress
+                train_annots = annots[self.train_indices]
+                #gdw = GetKDE()
+                self.dw_all ={}
+                stacked_arrays = []
+                for i in range(train_annots.shape[1]):
+                    self.dw_cur = f'dw{i}'
+                    self.dw_all[self.dw_cur] = GetKDE()#DenseWeight(alpha=1)
+                    weighted_targs = self.dw_all[self.dw_cur].fit(train_annots[:, i])
+                    stacked_arrays.append(weighted_targs)
+                
+
+                stacked_weight = np.stack(stacked_arrays, axis=1)
+
+                average_dense = np.mean(stacked_weight, axis=1)
+                #get average for that data point
+                #oversample based on that 
+                threshold = average_dense<tolerance #th
+                dense_thresh_filter = (average_dense)[threshold]
+                dense_thresh_indices = list(compress(self.train_indices, threshold)) #indices of under the threshhold
+
+                self.train_indices = self.train_indices + dense_thresh_indices
+
+    
+            elif self.oversampling_method == 'average_density_oversampling_V2'or self.oversampling_method == 'density_oversampling_augmentation_V2':
+                from itertools import compress
+                train_annots = annots[self.train_indices]
+                gdw = GetKDE()
+                self.dw_all ={}
+                stacked_arrays = []
+                for i in range(train_annots.shape[1]):
+                    self.dw_cur = f'dw{i}'
+                    self.dw_all[self.dw_cur] = GetKDE(alpha=alpha)#DenseWeight(alpha=1)
+                    weighted_targs = self.dw_all[self.dw_cur].fit(train_annots[:, i])
+                    stacked_arrays.append(weighted_targs)
+                
+
+                stacked_weight = np.stack(stacked_arrays, axis=1)
+
+                average_dense = np.mean(stacked_weight, axis=1)
+                #get average for that data point
+                #oversample based on that 
+                threshold = average_dense<tolerance #th
+                print((average_dense>0.5).sum())
+                print((average_dense<0.5).sum())
+
+                
+                dense_thresh_filter = (average_dense)[threshold]
+
+                dense_thresh_indices = list(compress(self.train_indices, threshold)) #indices of under the threshhold
+                q1 = np.percentile(dense_thresh_filter, 25)
+                q2 = np.percentile(dense_thresh_filter, 50)
+                q3 = np.percentile(dense_thresh_filter, 75)
+                indices_smaller_than_q1 = [index for index, value in enumerate(dense_thresh_filter) if value < q1]
+                indices_between_q1_and_q2 = [index for index, value in enumerate(dense_thresh_filter) if q1 <= value <= q2]
+                indices_higher_than_q3 = [index for index, value in enumerate(dense_thresh_filter) if value > q3]
+                smaller_q1 = [dense_thresh_indices[i] for i in indices_smaller_than_q1] 
+                between_q1_and_q2 = [dense_thresh_indices[i] for i in indices_between_q1_and_q2] 
+                higher_than_q3  = [dense_thresh_indices[i] for i in indices_higher_than_q3] 
+
+                self.train_indices = self.train_indices + smaller_q1 *3 + between_q1_and_q2*2 + higher_than_q3*1
+
+            elif self.oversampling_method == 'average_density_oversampling_V3':
+                from itertools import compress
+                train_annots = annots[self.train_indices]
+                gdw = GetKDE()
+                self.dw_all ={}
+                stacked_arrays = []
+                for i in range(train_annots.shape[1]):
+                    self.dw_cur = f'dw{i}'
+                    self.dw_all[self.dw_cur] = GetKDE(alpha=alpha)#DenseWeight(alpha=1)
+                    weighted_targs = self.dw_all[self.dw_cur].fit(train_annots[:, i])
+                    stacked_arrays.append(weighted_targs)
+                
+
+                stacked_weight = np.stack(stacked_arrays, axis=1)
+
+                average_dense = np.mean(stacked_weight, axis=1)
+                #get average for that data point
+                #oversample based on that 
+                threshold = average_dense<tolerance #th
+                print((average_dense>0.5).sum())
+                print((average_dense<0.5).sum())
+
+                
+                dense_thresh_filter = (average_dense)[threshold]
+
+                dense_thresh_indices = list(compress(self.train_indices, threshold)) #indices of under the threshhold
+                q1 = np.percentile(dense_thresh_filter, 25)
+                q2 = np.percentile(dense_thresh_filter, 50)
+                q3 = np.percentile(dense_thresh_filter, 75)
+                indices_smaller_than_q1 = [index for index, value in enumerate(dense_thresh_filter) if value < q1]
+                indices_between_q1_and_q2 = [index for index, value in enumerate(dense_thresh_filter) if q1 <= value <= q2]
+                indices_higher_than_q3 = [index for index, value in enumerate(dense_thresh_filter) if value > q3]
+                smaller_q1 = [dense_thresh_indices[i] for i in indices_smaller_than_q1] 
+                between_q1_and_q2 = [dense_thresh_indices[i] for i in indices_between_q1_and_q2] 
+                higher_than_q3  = [dense_thresh_indices[i] for i in indices_higher_than_q3] 
+
+                self.train_indices = self.train_indices + smaller_q1 *5 + between_q1_and_q2*4 + higher_than_q3*3
+
+
+            elif self.oversampling_method == 'minimum_density_oversampling':
+                from itertools import compress
+                train_annots = annots[self.train_indices]
+                #gdw = GetKDE()
+                self.dw_all ={}
+                stacked_arrays = []
+                for i in range(train_annots.shape[1]):
+                    self.dw_cur = f'dw{i}'
+                    self.dw_all[self.dw_cur] = GetKDE(alpha=alpha)#DenseWeight(alpha=1)
+                    weighted_targs = self.dw_all[self.dw_cur].fit(train_annots[:, i])
+                    stacked_arrays.append(weighted_targs)
+                
+
+                stacked_weight = np.stack(stacked_arrays, axis=1)
+
+                min_dense = np.min(stacked_weight, axis=1)
+                #get average for that data point
+                #oversample based on that 
+                threshold = min_dense<tolerance #th
+                dense_thresh_filter = (min_dense)[threshold]
+                dense_thresh_indices = list(compress(self.train_indices, threshold)) #indices of under the threshhold
+
+                self.train_indices = self.train_indices + dense_thresh_indices
 
 
 
@@ -629,7 +807,8 @@ class RandomPartitioner:
                 [self.annots[idx] for idx in indices],
                 [self.targs[idx] for idx in indices],
                 [self.names[idx] for idx in indices],
-                [self.genres[idx] for idx in indices])
+                [self.genres[idx] for idx in indices],
+                indices)
 
 
 
@@ -652,7 +831,9 @@ def load_data(
         oversampling_method = None,
         tolerance = 20,
         os_ratio = 1,
-        data_augmentation = False
+        data_augmentation = False,
+        alpha = 1,
+        task = 'regression'
     
         
 ):
@@ -662,8 +843,8 @@ def load_data(
         print(f'Loading Data! Scaling is set to {scale}!')
     else:
         print(f'Loading Data!')
-    entries = match_files(train_y = train_y)
-    if data_augmentation in [1,2,4]:
+    entries = match_files(train_y = train_y, task = task)
+    if data_augmentation in [1,2,4,8] or oversampling_method == 'density_oversampling_augmentation' or oversampling_method == 'density_oversampling_augmentation_V2':
         aug_entries = match_files_augmentation(train_y = train_y, data_augmentation = data_augmentation)
         #use aug_entries seperatly and create train test sets
         #get indices of train and get the augmented data of it
@@ -673,7 +854,7 @@ def load_data(
         print(f'Transformation is set to {transform}!')
     if use_audio_in:
         feats = [entry.get_audio() for entry in entries]
-        if data_augmentation in [1,2,4]:
+        if data_augmentation in [1,2,4,8] or oversampling_method == 'density_oversampling_augmentation' or oversampling_method == 'density_oversampling_augmentation_V2':
             aug_feats = [entry.get_audio() for entry in aug_entries]####
             aug_annots = [entry.get_gems_9() for entry in aug_entries]
             aug_targs = aug_annots
@@ -742,7 +923,7 @@ def load_data(
     targs = np.take(targs, label_idx, axis = 1) #this worked
     annots = targs
 
-    if data_augmentation in [1,2,4]:
+    if data_augmentation in [1,2,4,8] and not (oversampling_method == 'density_oversampling_augmentation' or oversampling_method == 'density_oversampling_augmentation_V2'):
         aug_data = {
             'aug_feats':aug_feats, 
             'aug_annots': aug_annots, 
@@ -750,12 +931,25 @@ def load_data(
             'aug_names' : aug_names, 
             'aug_genres': aug_genres
         }
-        data_aug_bool = True
+        data_aug_info = 'default'
+    elif data_augmentation in [1,2,4,8] and (oversampling_method == 'density_oversampling_augmentation' or oversampling_method == 'density_oversampling_augmentation_V2'):
+        aug_data = {
+            'aug_feats':aug_feats, 
+            'aug_annots': aug_annots, 
+            'aug_targs' : aug_targs, 
+            'aug_names' : aug_names, 
+            'aug_genres': aug_genres
+        }
+        data_aug_info = 'oversampling'
+        # aug_partitioner = RandomPartitioner(feats, annots, targs, names, genres, 42, train_y, mode = mode, tolerance = tolerance, oversampling = oversampling, os_ratio = os_ratio, oversampling_method = oversampling_method,
+        #                             data_augmentation = data_aug_info, data_aug_data = aug_data , alpha = alpha)
+        # aug_train_feats, aug_train_annots, aug_train_targs, aug_train_names, aug_train_genres, aug_train_ix = aug_partitioner.get_split('train')
+        data_aug_info = 'None'
     else:
         aug_data = {}
-        data_aug_bool = False
+        data_aug_info = False
     partitioner = RandomPartitioner(feats, annots, targs, names, genres, 42, train_y, mode = mode, tolerance = tolerance, oversampling = oversampling, os_ratio = os_ratio, oversampling_method = oversampling_method,
-                                    data_augmentation = data_aug_bool, data_aug_data = aug_data )
+                                    data_augmentation = data_aug_info, data_aug_data = aug_data , alpha = alpha)
     
     # if data_augmentation in [1,2,4]:
     #     aug_partitioner = RandomPartitioner(aug_feats, aug_annots, aug_targs, aug_names, aug_genres, 42, train_y, mode = mode, tolerance = tolerance, oversampling = oversampling, os_ratio = os_ratio, oversampling_method = oversampling_method)
@@ -766,14 +960,47 @@ def load_data(
     pin_memory = gpu_num > -1
 
 
-    train_feats, train_annots, train_targs, train_names, train_genres = partitioner.get_split('train')
-    # if data_augmentation in [1,2,4]:
-    #     aug_train_feats, aug_train_annots, aug_train_targs, aug_train_names, aug_train_genres = aug_partitioner.get_split('train')
-    #     train_feats = train_feats + aug_train_feats
-    #     train_annots = train_annots + aug_train_annots
-    #     train_targs = train_targs + aug_train_targs
-    #     train_names = train_names + aug_train_names
-    #     train_genres = train_genres + aug_train_genres
+    train_feats, train_annots, train_targs, train_names, train_genres, train_ix = partitioner.get_split('train')
+    #todo ADD Augmentation here prinz p 7
+    if oversampling_method == 'density_oversampling_augmentation' or oversampling_method == 'density_oversampling_augmentation_V2':
+        index_dict = defaultdict(list)
+        for idx, item in enumerate(train_ix):
+            index_dict[item].append(idx)
+
+            # Find duplicates and their indices
+        testing = {item: indices for item, indices in index_dict.items() if len(indices) > 1}
+        duplicates =  {item: indices[1:] for item, indices in index_dict.items() if len(indices) > 1} #
+        # get index of duplicate entries and get the corresponding augmented data!
+        list_idx = duplicates.keys()
+        aug_oversampling_names = [aug_names[i] for i in list_idx]
+        aug_oversampling_targs = [aug_targs[i] for i in list_idx]
+        aug_oversampling_annots = [aug_annots[i] for i in list_idx]
+        aug_oversampling_feats = [aug_feats[i] for i in list_idx]
+
+        #remove oversampled entries from the train set
+        to_remove_idx = duplicates.values()
+        to_remove_list = []
+        for sublist in to_remove_idx:
+            to_remove_list.extend(sublist)
+        to_remove_list.sort(reverse=True)
+        for idx in to_remove_list:
+            del train_annots[idx]
+            del train_feats[idx]
+            del train_names[idx]
+            del train_targs[idx]
+
+        train_annots = train_annots + aug_oversampling_annots
+        train_feats = train_feats + aug_oversampling_feats
+        train_names = train_names + aug_oversampling_names
+        train_targs = train_targs + aug_oversampling_targs
+
+        # print(aug_names[356])
+        # print(train_names[257])
+        # print(train_names[115])
+        # print(aug_annots[356])
+        # print(train_annots[257])
+
+    #check if duplicate exist in train_ix, get indices of duplicate and test
 
     frames_to_samples = FramesToSamples(hop_size=feat_settings.hop_size, window_size=feat_settings.frame_size)
 
@@ -798,7 +1025,7 @@ def load_data(
     valid_seq_len = seq_len
     valid_batch_size = batch_size
 
-    valid_feats, valid_annots, valid_targs, valid_names, valid_genres = partitioner.get_split('valid')
+    valid_feats, valid_annots, valid_targs, valid_names, valid_genres, valid_ix = partitioner.get_split('valid')
     valid_loader = DataLoader(
         SnippetDataset(
             valid_feats,
@@ -814,7 +1041,7 @@ def load_data(
         num_workers=num_pt_workers,
         pin_memory=pin_memory,
     )
-    test_feats, test_annots, test_targs, test_names, test_genres = partitioner.get_split('test')
+    test_feats, test_annots, test_targs, test_names, test_genres, test_ix = partitioner.get_split('test')
 
 
     test_loader = DataLoader(
