@@ -17,7 +17,7 @@ import math
 from data.utils import GetKDE, bisection
 from torchaudio.transforms import PitchShift
 from data.create_augmentation import create_augmentation
-
+from sklearn.model_selection import KFold
 SAMPLE_RATE = 44100
 
 DATA_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -301,7 +301,8 @@ def match_files_augmentation(train_y, data_augmentation):
 
 class RandomPartitioner:
     def __init__(self, feats, annots, targs, names, genres, seed, train_y,mode, tolerance, oversampling_method = None, 
-                oversampling = False,test_split=0.15, valid_split=0.15, os_ratio = 1, data_augmentation = 'default', data_aug_data = {}, alpha = 1):
+                oversampling = False,test_split=0.15, valid_split=0.15, os_ratio = 1, data_augmentation = 'default', data_aug_data = {}, alpha = 1,
+                fold = False, stratified = False, manual_seed = False):
         self.feats = feats
         self.annots = annots
         self.targs = targs
@@ -311,15 +312,125 @@ class RandomPartitioner:
         self.tolerance = tolerance
         num_samples = len(feats)
         assert num_samples == len(annots) == len(targs) == len(names) == len(genres)
-        import random as rand
-        rand.seed(seed)
-        indices = list(range(num_samples))
-        rand.shuffle(indices)
-        test_stop = int(num_samples * test_split)
-        valid_stop = test_stop + int(num_samples * valid_split)
-        self.test_indices = indices[:test_stop]
-        self.valid_indices = indices[test_stop:valid_stop]
-        self.train_indices = indices[valid_stop:]
+        self.fold = fold
+        if fold == False:
+            import random as rand
+            rand.seed(seed)
+            indices = list(range(num_samples))
+            rand.shuffle(indices)
+            test_stop = int(num_samples * test_split)
+            valid_stop = test_stop + int(num_samples * valid_split)
+            self.test_indices = indices[:test_stop]
+            self.valid_indices = indices[test_stop:valid_stop]
+            self.train_indices = indices[valid_stop:]
+        elif isinstance(fold, int) or fold is not False:
+            if stratified == False:
+                print('classic CV!')
+                import random as rand
+                if manual_seed == True:
+                    print(f'random partitioner manual seed: {seed}')
+                    rand.seed(seed)
+                else:
+                    rand.seed(10)
+                indices = list(range(num_samples))
+                rand.shuffle(indices)
+                valid_split = 0.15
+                sublist_size = num_samples // 10
+                # Splitting the list into 10 equal-sized sublists
+                split_lists = [indices[i * sublist_size: (i + 1) * sublist_size] for i in range(10)]
+                ## combine folds
+                if fold != 10:
+
+                    train_valid_indices = sum(split_lists[:fold-1] + split_lists[fold:], [])
+                elif fold == 10:
+                    train_valid_indices = sum(split_lists[:-1], [])
+                
+                self.test_indices = split_lists[fold-1]
+                #assert so that test is not in train
+                assert [elem for elem in self.test_indices if elem in train_valid_indices] == []
+                valid_stop = int(num_samples * valid_split)
+                self.valid_indices = train_valid_indices[:valid_stop]
+                self.train_indices = train_valid_indices[valid_stop:]
+
+                assert [elem for elem in self.valid_indices if elem in self.train_indices] == []
+                assert [elem for elem in self.test_indices if elem in self.train_indices] == []
+
+
+            elif stratified == True:
+                print('stratified CV!')
+
+                #TODO
+                num_splits = 10 #10 folds
+
+                num_bins = math.floor(len(self.annots) / num_splits)  # num of bins to be created
+                #num_bins = 10
+                ##binning has to be based on something, use of KDE value?
+
+                from itertools import compress
+                #TODO change train_annots
+                #train_annots = annots[list(range(num_samples))]
+                self.dw_all ={}
+                stacked_arrays = []
+                for i in range(annots.shape[1]):
+                    self.dw_cur = f'dw{i}'
+                    self.dw_all[self.dw_cur] = GetKDE()#DenseWeight(alpha=1)
+                    #TODO check here
+                    weighted_targs = self.dw_all[self.dw_cur].fit(annots[:, i])
+                    stacked_arrays.append(weighted_targs)
+                
+
+                stacked_weight = np.stack(stacked_arrays, axis=1)
+
+                average_dense = np.mean(stacked_weight, axis=1)
+                data_f = pd.DataFrame(average_dense, columns = ['average_dense'])
+                
+                qc = pd.qcut(average_dense.tolist(), num_bins, labels=None)  # divides data in bins
+
+                # 10 bins, create folds based on 10 bins
+                bins = qc.codes
+                data_f['bins'] = bins
+                data_f['idx'] = data_f.index
+
+                folds = {}
+                
+                np.random.seed(250)
+
+                for i in range(10):
+                    #for each fold
+                    folds[f'{i}'] = []
+                    for bin_index in range(num_bins):
+
+                        indices = data_f[data_f['bins'] == bin_index]
+                        #test_size = int(len(indices) / n_splits)
+
+                        selected_indices = np.random.choice(indices['idx'], replace=False)
+                        folds[f'{i}'].append(selected_indices)
+                        data_f = data_f.drop(selected_indices)
+                        #my_list.remove(selected_indices)
+                        #folds[f'i'] = np.concatenate([folds[f'i'], [selected_indices]])
+
+                    #train_indices = np.array(list(set(data.index) - set(test_indices)))
+                if len(data_f) >0:
+                    for i in data_f.index:
+                        choice = np.random.choice(10, replace=False)
+                        folds[f'{choice}'].append(data_f['idx'].loc[i])
+                split_lists = [array for array in folds.values()]
+                if fold != 10:
+
+                    train_valid_indices = sum(split_lists[:fold-1] + split_lists[fold:], [])
+                elif fold == 10:
+                    train_valid_indices = sum(split_lists[:-1], [])
+                
+                self.test_indices = split_lists[fold-1]
+                #assert so that test is not in train
+                assert [elem for elem in self.test_indices if elem in train_valid_indices] == []
+                valid_stop = int(num_samples * valid_split)
+                self.valid_indices = train_valid_indices[:valid_stop]
+                self.train_indices = train_valid_indices[valid_stop:]
+
+                assert [elem for elem in self.valid_indices if elem in self.train_indices] == []
+                assert [elem for elem in self.test_indices if elem in self.train_indices] == []
+
         self.oversampling = oversampling
         self.oversampling_method = oversampling_method
         
@@ -570,7 +681,7 @@ class RandomPartitioner:
                 print(f'Oversampling by {self.oversampling_method}')
                 print(f'Oversampling! Treshold is set to {tolerance} and ratio to {os_ratio}')
                 train_annots = annots[self.train_indices]
-                gdw = GetKDE(alpha=alpha)
+                gdw = GetKDE()
                 dense = gdw.fit(train_annots)
                 threshold = dense<tolerance #th
                 print((dense>0.5).sum())
@@ -623,36 +734,9 @@ class RandomPartitioner:
 
                 self.train_indices = self.train_indices + smaller_q1 *3 + between_q1_and_q2*2 + higher_than_q3*1
 
-            elif self.oversampling_method == 'density_oversampling':
-                from itertools import compress
-                #this will only work with one label
-                #y = np.array(self.annots)
-                print(f'Oversampling by {self.oversampling_method}')
-                print(f'Oversampling! Treshold is set to {tolerance} and ratio to {os_ratio}')
-                train_annots = annots[self.train_indices]
-                gdw = GetKDE()
-                dense = gdw.fit(train_annots)
-                threshold = dense<tolerance #th
-                print((dense>0.5).sum())
-                print((dense<0.5).sum())
-                new_len = math.floor(((dense>0.5).sum() - threshold.sum())/os_ratio)
-                import random
-                
-                candidates = []
-                w = (1-dense)[threshold]
-                #train_annots_thresh = train_annots[threshold]
 
-                
-                dense_thresh_indices = list(compress(self.train_indices, threshold)) 
-                #np.array(self.train_indices)[threshold]
-                for i in range(new_len):
-                    random_chosen = random.choices(dense_thresh_indices,weights = w)
-                    #arange(a.size)
-                    choice = random_chosen[0] #np.where(train_annots == random_chosen)[0][0]
-                    candidates.append(choice)
-                self.train_indices = self.train_indices + candidates
     
-            elif self.oversampling_method == 'average_density_oversampling' or self.oversampling_method == 'density_oversampling_augmentation':
+            elif self.oversampling_method == 'average_density_oversampling' or self.oversampling_method == 'density_oversampling_augmentation' or self.oversampling_method == 'density_oversampling_augmentation_ALL':
                 from itertools import compress
                 train_annots = annots[self.train_indices]
                 #gdw = GetKDE()
@@ -673,7 +757,7 @@ class RandomPartitioner:
                 threshold = average_dense<tolerance #th
                 dense_thresh_filter = (average_dense)[threshold]
                 dense_thresh_indices = list(compress(self.train_indices, threshold)) #indices of under the threshhold
-
+                print(dense_thresh_indices)
                 self.train_indices = self.train_indices + dense_thresh_indices
 
     
@@ -751,7 +835,7 @@ class RandomPartitioner:
                 between_q1_and_q2 = [dense_thresh_indices[i] for i in indices_between_q1_and_q2] 
                 higher_than_q3  = [dense_thresh_indices[i] for i in indices_higher_than_q3] 
 
-                self.train_indices = self.train_indices + smaller_q1 *5 + between_q1_and_q2*4 + higher_than_q3*3
+                self.train_indices = self.train_indices + smaller_q1 *5 + between_q1_and_q2*3 + higher_than_q3*2
 
 
             elif self.oversampling_method == 'minimum_density_oversampling':
@@ -777,6 +861,29 @@ class RandomPartitioner:
                 dense_thresh_indices = list(compress(self.train_indices, threshold)) #indices of under the threshhold
 
                 self.train_indices = self.train_indices + dense_thresh_indices
+            elif self.oversampling_method == 'non_average_density_oversampling_augmentation' or self.oversampling_method == 'non_average_density_oversampling':
+                
+                #maybe implement?
+                from itertools import compress
+                train_annots = annots[self.train_indices]
+                #gdw = GetKDE()
+                self.dw_all ={}
+                stacked_arrays = []
+                for i in range(train_annots.shape[1]):
+                    self.dw_cur = f'dw{i}'
+                    self.dw_all[self.dw_cur] = GetKDE()#DenseWeight(alpha=1)
+                    weighted_targs = self.dw_all[self.dw_cur].fit(train_annots[:, i])
+                    stacked_arrays.append(weighted_targs)
+                
+
+                stacked_weight = np.stack(stacked_arrays, axis=1)
+                mask = stacked_weight< tolerance
+                dense = np.any(mask, axis=1)
+
+                #average_dense = np.mean(stacked_weight, axis=1)
+                dense_thresh_indices = list(compress(self.train_indices, dense))
+
+                self.train_indices = self.train_indices + dense_thresh_indices
 
 
 
@@ -789,6 +896,27 @@ class RandomPartitioner:
         test_list.extend(self.train_indices)
         #not going to be same len because of oversampling
         #assert test_list == indices
+        print(len(self.train_indices))
+        print(len(self.valid_indices))
+        print(len(self.test_indices))
+        if stratified == True and manual_seed == False:
+            csv_file_path = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/results_indices/indices_stratified.csv'
+            csv_file_path_test = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/results_indices/indices_test_stratified.csv'
+        elif stratified == False and manual_seed == False:
+            csv_file_path = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/results_indices/indices.csv'
+            csv_file_path_test = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/results_indices/indices_test.csv'
+        elif stratified == True and manual_seed == True:
+            csv_file_path = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/results_indices/indices_stratified_seed.csv'
+            csv_file_path_test = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/results_indices/indices_test_stratified_seed.csv'
+        elif stratified == False and manual_seed == True:
+            csv_file_path = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/results_indices/indices_seed.csv'
+            csv_file_path_test = '/home/ykinoshita/humrec_mood_tagger/mood_tagger_master_thesis_V2/results_indices/indices_test_seed.csv'
+        if manual_seed == False:
+            add_column_to_csv(csv_file_path,f'{self.fold}',train_valid_indices)
+            add_column_to_csv(csv_file_path_test,f'{self.fold}',self.test_indices)
+        else:
+            add_column_to_csv(csv_file_path,f'{self.fold}', seed, train_valid_indices)
+            add_column_to_csv(csv_file_path_test,f'{self.fold}', seed, self.test_indices)
 
     def get_split(self, split_name):
         
@@ -796,6 +924,9 @@ class RandomPartitioner:
             # print(self.train_indices)
             # print([self.names[idx] for idx in self.train_indices])
             indices = self.train_indices
+            
+
+            
         elif split_name == 'valid':
             indices = self.valid_indices
         elif split_name == 'test':
@@ -810,6 +941,30 @@ class RandomPartitioner:
                 [self.genres[idx] for idx in indices],
                 indices)
 
+import csv
+import os
+def add_column_to_csv(file_path, new_column_name, new_column_data):
+    # Check if the file exists
+    file_exists = os.path.isfile(file_path)
+
+    # If the file exists, read it into a DataFrame
+    if file_exists:
+        df = pd.read_csv(file_path)
+    else:
+        # If the file doesn't exist, create an empty DataFrame
+        df = pd.DataFrame()
+
+    # Determine the length of the new column data
+    new_column_length = len(new_column_data)
+
+    # Create a new DataFrame for the new column
+    new_column_df = pd.DataFrame({new_column_name: new_column_data})
+
+    # Concatenate the existing DataFrame with the new column DataFrame
+    df = pd.concat([df, new_column_df], axis=1)
+
+    # Write the DataFrame to the CSV file
+    df.to_csv(file_path, index=False)
 
 
 def load_data(
@@ -833,7 +988,11 @@ def load_data(
         os_ratio = 1,
         data_augmentation = False,
         alpha = 1,
-        task = 'regression'
+        task = 'regression',
+        fold = False,
+        stratified = False,
+        manual_seed = False,
+        cur_seed = 10
     
         
 ):
@@ -843,8 +1002,11 @@ def load_data(
         print(f'Loading Data! Scaling is set to {scale}!')
     else:
         print(f'Loading Data!')
+    if manual_seed == True:
+        print(f'Current seed {cur_seed}!')
+    oversampling_data_augmentation =[ 'density_oversampling_augmentation','density_oversampling_augmentation_V2','density_oversampling_augmentation_ALL', 'non_average_density_oversampling_augmentation']
     entries = match_files(train_y = train_y, task = task)
-    if data_augmentation in [1,2,4,8] or oversampling_method == 'density_oversampling_augmentation' or oversampling_method == 'density_oversampling_augmentation_V2':
+    if data_augmentation in [1,2,4,8] or oversampling_method in oversampling_data_augmentation:
         aug_entries = match_files_augmentation(train_y = train_y, data_augmentation = data_augmentation)
         #use aug_entries seperatly and create train test sets
         #get indices of train and get the augmented data of it
@@ -854,7 +1016,7 @@ def load_data(
         print(f'Transformation is set to {transform}!')
     if use_audio_in:
         feats = [entry.get_audio() for entry in entries]
-        if data_augmentation in [1,2,4,8] or oversampling_method == 'density_oversampling_augmentation' or oversampling_method == 'density_oversampling_augmentation_V2':
+        if data_augmentation in [1,2,4,8] or oversampling_method in oversampling_data_augmentation:
             aug_feats = [entry.get_audio() for entry in aug_entries]####
             aug_annots = [entry.get_gems_9() for entry in aug_entries]
             aug_targs = aug_annots
@@ -923,7 +1085,7 @@ def load_data(
     targs = np.take(targs, label_idx, axis = 1) #this worked
     annots = targs
 
-    if data_augmentation in [1,2,4,8] and not (oversampling_method == 'density_oversampling_augmentation' or oversampling_method == 'density_oversampling_augmentation_V2'):
+    if data_augmentation in [1,2,4,8] and oversampling_method not in oversampling_data_augmentation:
         aug_data = {
             'aug_feats':aug_feats, 
             'aug_annots': aug_annots, 
@@ -932,7 +1094,7 @@ def load_data(
             'aug_genres': aug_genres
         }
         data_aug_info = 'default'
-    elif data_augmentation in [1,2,4,8] and (oversampling_method == 'density_oversampling_augmentation' or oversampling_method == 'density_oversampling_augmentation_V2'):
+    elif data_augmentation in [1,2,4,8] and oversampling_method in oversampling_data_augmentation:
         aug_data = {
             'aug_feats':aug_feats, 
             'aug_annots': aug_annots, 
@@ -948,9 +1110,16 @@ def load_data(
     else:
         aug_data = {}
         data_aug_info = False
-    partitioner = RandomPartitioner(feats, annots, targs, names, genres, 42, train_y, mode = mode, tolerance = tolerance, oversampling = oversampling, os_ratio = os_ratio, oversampling_method = oversampling_method,
+    if isinstance(fold, int):
+        partitioner = RandomPartitioner(feats, annots, targs, names, genres, 42, train_y, mode = mode, tolerance = tolerance, oversampling = oversampling, os_ratio = os_ratio, oversampling_method = oversampling_method,
+                                    data_augmentation = data_aug_info, data_aug_data = aug_data , alpha = alpha, fold = fold, stratified = stratified)
+    elif isinstance(fold, int) and manual_seed == True:
+        partitioner = RandomPartitioner(feats, annots, targs, names, genres, cur_seed, train_y, mode = mode, tolerance = tolerance, oversampling = oversampling, os_ratio = os_ratio, oversampling_method = oversampling_method,
+                                    data_augmentation = data_aug_info, data_aug_data = aug_data , alpha = alpha, fold = fold, stratified = stratified, manual_seed = True)
+    else:
+        partitioner = RandomPartitioner(feats, annots, targs, names, genres, 42, train_y, mode = mode, tolerance = tolerance, oversampling = oversampling, os_ratio = os_ratio, oversampling_method = oversampling_method,
                                     data_augmentation = data_aug_info, data_aug_data = aug_data , alpha = alpha)
-    
+    #
     # if data_augmentation in [1,2,4]:
     #     aug_partitioner = RandomPartitioner(aug_feats, aug_annots, aug_targs, aug_names, aug_genres, 42, train_y, mode = mode, tolerance = tolerance, oversampling = oversampling, os_ratio = os_ratio, oversampling_method = oversampling_method)
 
@@ -962,7 +1131,7 @@ def load_data(
 
     train_feats, train_annots, train_targs, train_names, train_genres, train_ix = partitioner.get_split('train')
     #todo ADD Augmentation here prinz p 7
-    if oversampling_method == 'density_oversampling_augmentation' or oversampling_method == 'density_oversampling_augmentation_V2':
+    if oversampling_method in oversampling_data_augmentation:
         index_dict = defaultdict(list)
         for idx, item in enumerate(train_ix):
             index_dict[item].append(idx)
@@ -978,16 +1147,17 @@ def load_data(
         aug_oversampling_feats = [aug_feats[i] for i in list_idx]
 
         #remove oversampled entries from the train set
-        to_remove_idx = duplicates.values()
-        to_remove_list = []
-        for sublist in to_remove_idx:
-            to_remove_list.extend(sublist)
-        to_remove_list.sort(reverse=True)
-        for idx in to_remove_list:
-            del train_annots[idx]
-            del train_feats[idx]
-            del train_names[idx]
-            del train_targs[idx]
+        if oversampling_method in [ 'density_oversampling_augmentation','density_oversampling_augmentation_V2', 'non_average_density_oversampling_augmentation']:
+            to_remove_idx = duplicates.values()
+            to_remove_list = []
+            for sublist in to_remove_idx:
+                to_remove_list.extend(sublist)
+            to_remove_list.sort(reverse=True)
+            for idx in to_remove_list:
+                del train_annots[idx]
+                del train_feats[idx]
+                del train_names[idx]
+                del train_targs[idx]
 
         train_annots = train_annots + aug_oversampling_annots
         train_feats = train_feats + aug_oversampling_feats
@@ -999,6 +1169,15 @@ def load_data(
         # print(train_names[115])
         # print(aug_annots[356])
         # print(train_annots[257])
+
+    
+    # elif oversampling_method == 'non_average_density_oversampling_augmentation':
+    #     #TODO
+    #     train_annots = train_annots + aug_oversampling_annots
+    #     train_feats = train_feats + aug_oversampling_feats
+    #     train_names = train_names + aug_oversampling_names
+    #     train_targs = train_targs + aug_oversampling_targs
+
 
     #check if duplicate exist in train_ix, get indices of duplicate and test
 
@@ -1058,6 +1237,7 @@ def load_data(
         #    print(True)
         if value in test_names:
             matching_indices.append(index)
+
     assert len(matching_indices) == 0
 
     matching_indices = []

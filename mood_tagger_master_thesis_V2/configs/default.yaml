@@ -1,6 +1,6 @@
 datasets:
-  data_augmentation: 4
-  dense_weight_alpha: 1
+  data_augmentation: 0
+  dense_weight_alpha: 0
   labels:
   - Wonder
   - Transcendence
@@ -15,9 +15,9 @@ datasets:
   names:
   - emma_gems9
   oversampling: False
-  oversampling_method: density_oversampling_augmentation_V2
+  oversampling_method: No_oversampling
   oversampling_ratio: 1
-  oversampling_tolerance: 0.6
+  oversampling_tolerance: 0.8
   scale: None
 features:
   frame_rate: 5
@@ -34,7 +34,7 @@ training:
   max_num_epochs: 999999
   memory_map: true
   num_data_threads: 8
-  patience: 50
+  patience: 100
   refinements: 3
   sequence_hop: 40
   sequence_length: 150

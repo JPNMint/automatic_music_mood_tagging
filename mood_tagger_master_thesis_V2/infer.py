@@ -16,6 +16,7 @@ def run(run_path = None):
     # 21-06-42 > conv_02 -> 6 seconds 150
     # 21-11-13 > conv_02 -> 16s 500 seqlen
     if run_path is None:
+        #run_path = '/home/ykinoshita/humrec_mood_tagger/outputs/2023-12-12/09-57-31' #best oversampling aug percentile 0.39
         run_path = '/home/ykinoshita/humrec_mood_tagger/outputs/2023-12-06/00-23-04' #best oversampling aug
         #run_path = "/home/ykinoshita/humrec_mood_tagger/outputs/2023-12-05/15-03-09"
         #run_path = '/home/ykinoshita/humrec_mood_tagger/outputs/2023-11-22/10-07-19'

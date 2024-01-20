@@ -203,6 +203,12 @@ mood_tagger_master_thesis_V2/data/cache_augmented_8/
 mood_tagger_master_thesis_V2/data/audio_embeddings/
 mood_tagger_master_thesis_V2/emma/
 mood_tagger_master_thesis_V2/musicnn_pons/
+output_fold/
+output_fold_stratified/
+output_fold_seeds/
+output_fold_stratified_seeds/
+
+
 
 music-audio-representations/
 music-audio-representations/
@@ -216,3 +222,5 @@ mood_tagger_master_thesis_V2/transfer_learning/
 testing/
 
 .gitignore
+
+mood_tagger_master_thesis_V2/transfer_learning/musicnn
